@@ -89,22 +89,26 @@ Panel {
 
   function clearError() { errorCode = ""; errorMessage = "" }
 
-  function startCapture(mode) {
+  function startCapture(mode, geometry) {
     if (busy) return
     clearError()
     if (opened) close()
     phase = "capturing"
     // Give the panel a moment to leave the screen before the capture.
     startTimer.mode = mode
+    startTimer.geometry = geometry || ""
     startTimer.restart()
   }
 
   Timer {
     id: startTimer
     property string mode: "region"
+    property string geometry: ""
     interval: 320
     onTriggered: {
-      capProc.command = ["python3", "-I", root.helperPath, "capture", mode]
+      var args = ["python3", "-I", root.helperPath, "capture", mode]
+      if (geometry !== "") args = args.concat(["--geometry", geometry])
+      capProc.command = args
       capProc.running = true
     }
   }
@@ -187,6 +191,7 @@ Panel {
     id: composeProc
     property string payload: ""
     property bool resetContext: false
+    command: ["python3", "-I", root.helperPath, "compose"]
     stdinEnabled: true
     stdout: StdioCollector { id: composeOut }
     onStarted: write(payload + "\n")
@@ -207,6 +212,7 @@ Panel {
   Process {
     id: sendProc
     property string payload: ""
+    command: ["python3", "-I", root.helperPath, "send"]
     stdinEnabled: true
     stdout: StdioCollector { id: sendOut }
     onStarted: write(payload + "\n")
@@ -226,6 +232,7 @@ Panel {
   Process {
     id: copyProc
     property string payload: ""
+    command: ["python3", "-I", root.helperPath, "copy"]
     stdinEnabled: true
     stdout: StdioCollector { id: copyOut }
     onStarted: write(payload + "\n")
@@ -275,6 +282,11 @@ Panel {
     function capture(mode: string): string {
       if (mode !== "region" && mode !== "window") return "unsupported-mode: " + mode
       root.startCapture(mode)
+      return "ok"
+    }
+    // A fixed area, "x,y WxH" in screen coordinates. For scripts and tests.
+    function captureRegion(geometry: string): string {
+      root.startCapture("region", String(geometry || ""))
       return "ok"
     }
     function resend(): string { root.resend(); return "ok" }
@@ -520,12 +532,18 @@ Panel {
         Item {
           id: thumbBox
           visible: root.view === "ready" || root.view === "sending"
+          readonly property real framePad: Style.space(10)
+          readonly property real maxH: Style.space(190)
+          readonly property bool known: thumb.implicitWidth > 0 && thumb.implicitHeight > 0
+          // From the picture's own size, so the frame never depends on what is painted.
+          readonly property real fit: known ? Math.min((width - framePad) / thumb.implicitWidth,
+                                                       (maxH - framePad) / thumb.implicitHeight, 1.6) : 1
           width: parent.width
-          height: visible ? Math.min(Style.space(190), Math.max(Style.space(70), thumb.paintedHeight + Style.space(10))) : 0
+          height: visible ? (known ? Math.round(thumb.implicitHeight * fit + framePad) : Style.space(70)) : 0
 
           BorderSurface {
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.max(Style.space(60), thumb.paintedWidth + Style.space(10))
+            width: thumbBox.known ? Math.round(thumb.implicitWidth * thumbBox.fit + thumbBox.framePad) : Style.space(120)
             height: parent.height
             radius: Style.cornerRadius
             color: Style.normalFillFor(root.fg, root.accent)
@@ -534,7 +552,7 @@ Panel {
             Image {
               id: thumb
               anchors.fill: parent
-              anchors.margins: Style.space(5)
+              anchors.margins: thumbBox.framePad / 2
               source: root.snap ? "file://" + root.snap.capture.path : ""
               fillMode: Image.PreserveAspectFit
               asynchronous: true

@@ -70,6 +70,14 @@ class MaskTests(unittest.TestCase):
         self.assertTrue(all(f["masked"] for f in out["findings"][1:]))
         self.assertEqual([f["id"] for f in out["findings"]], [f["id"] for f in self.result["findings"]])
 
+    def test_ids_count_from_one_and_from_start(self):
+        ids = [f["id"] for f in self.result["findings"]]
+        self.assertEqual(ids, list(range(1, len(ids) + 1)))
+        text = "a password=hunter22pass and token=abcdef123456 here"
+        later = mask.mask(text, start=5)
+        self.assertEqual([f["id"] for f in later["findings"]], [5, 6])
+        self.assertIn("[MASKED:assignment:5]", later["text"])
+
     def test_masking_twice_changes_nothing(self):
         again = mask.mask(self.text)
         self.assertEqual(again["text"], self.text)

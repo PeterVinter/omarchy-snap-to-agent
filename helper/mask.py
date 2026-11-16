@@ -39,29 +39,30 @@ def mask(text, allow=(), start=1):
     the findings list with masked=False.
     """
     allow = set(allow or ())
+    first_id = start
     text = str(text or "")
-    spans = []  # (start, end, kind)
+    spans = []  # (begin, end, kind)
     for kind, rx, group in _RULES:
         for m in rx.finditer(text):
-            start, end = m.span(group)
-            if start == end or _PLACEHOLDER_RE.fullmatch(text[start:end]):
+            begin, end = m.span(group)
+            if begin == end or _PLACEHOLDER_RE.fullmatch(text[begin:end]):
                 continue
-            spans.append((start, end, kind))
+            spans.append((begin, end, kind))
     # Longest first, so a private key block beats lines inside it; drop overlaps.
     spans.sort(key=lambda s: (s[0], -(s[1] - s[0])))
     kept = []
     last_end = -1
-    for start, end, kind in spans:
-        if start >= last_end:
-            kept.append((start, end, kind))
+    for begin, end, kind in spans:
+        if begin >= last_end:
+            kept.append((begin, end, kind))
             last_end = end
-        elif end > last_end and kept and kept[-1][0] == start:
-            kept[-1] = (start, end, kept[-1][2])
+        elif end > last_end and kept and kept[-1][0] == begin:
+            kept[-1] = (begin, end, kept[-1][2])
             last_end = end
     out = []
     findings = []
     pos = 0
-    for i, (a, b, kind) in enumerate(kept, start):
+    for i, (a, b, kind) in enumerate(kept, first_id):
         out.append(text[pos:a])
         placeholder = PLACEHOLDER % (kind, i)
         masked = i not in allow
