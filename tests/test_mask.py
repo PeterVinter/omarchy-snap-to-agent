@@ -17,7 +17,7 @@ ANTHROPIC_API_KEY=sk-ant-api03-FAKEFAKEFAKEFAKEFAKEFAKE
 -----BEGIN RSA PRIVATE KEY-----
 MIIFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
 -----END RSA PRIVATE KEY-----
-normal line: ls -la /home/peter
+normal line: ls -la /home/user
 """
 
 
@@ -40,7 +40,7 @@ class MaskTests(unittest.TestCase):
             self.assertIn(kind, self.kinds, kind)
 
     def test_normal_text_is_untouched(self):
-        self.assertIn("normal line: ls -la /home/peter", self.text)
+        self.assertIn("normal line: ls -la /home/user", self.text)
         self.assertIn("curl -H", self.text)
         self.assertIn("postgres://admin:", self.text)  # user name stays, only the password goes
 
