@@ -55,6 +55,8 @@ Context attached automatically: app class and window title, workspace and monito
 
 If you want the agent to act without asking, turn on **Let the agent act without asking (auto mode)** in the settings (`agent_auto` in `config.json`, off by default). The agent is then started the way Omarchy's own launcher starts it, with the agent's auto-approve option where the plugin knows one (for example `--permission-mode auto` for Claude Code, `--approve-for-me` for Codex, `--auto` for OpenCode). Pi, Ori, MiniMax Code, OpenClaw and Freebuff have no such option in Omarchy's launcher, and DeepSeek Harness's is "full access", which is too broad for a checkbox, so those are started as usual. While auto mode is on, the preview says so in red every time.
 
+![The preview warns while auto mode is on](docs/screenshots/09-auto-mode-warning.png)
+
 ## Install
 
 ```bash
