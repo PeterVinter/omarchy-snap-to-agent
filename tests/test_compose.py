@@ -58,6 +58,43 @@ class ComposeTests(unittest.TestCase):
         self.assertNotIn("hunter22pass", r["prompt"])
         self.assertNotIn("Screenshot:", r["prompt"])
 
+    def test_source_text_block_for_text_modes(self):
+        src = {"kind": "error", "text": "Command: make\nExit code: 2\n\nOutput:\nboom"}
+        r = compose.compose("", CTX, None, "error", agent="claude", source=src)
+        self.assertIn("### The failed command", r["context"])
+        self.assertIn("Exit code: 2", r["prompt"])
+        self.assertFalse(r["has_image"])
+        self.assertNotIn("image_path_only", r["notes"])
+        self.assertNotIn("Screenshot:", r["prompt"])
+
+    def test_source_text_is_masked(self):
+        src = {"kind": "clipboard", "text": "export TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"}
+        r = compose.compose("q", dict(CTX, logs=""), None, "clipboard", agent="claude", source=src)
+        self.assertNotIn("ghp_0123456789", r["prompt"])
+
+    def test_secrets_visible_in_the_image_warn_and_text_only_drops_the_image(self):
+        ocr_text = "GITHUB_TOKEN=ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"
+        r = compose.compose("q", dict(CTX, logs=""), SHOT, "region", agent="claude", ocr_text=ocr_text)
+        self.assertIn("image_has_secrets", r["notes"])
+        self.assertEqual(r["image_secrets"], ["github-token"])
+        self.assertNotIn("ghp_0123456789", r["prompt"])
+        t = compose.compose("q", dict(CTX, logs=""), SHOT, "region", agent="claude", ocr_text=ocr_text, send_image=False)
+        self.assertIn("image_not_sent", t["notes"])
+        self.assertNotIn("image_has_secrets", t["notes"])
+        self.assertNotIn("20261116-230000-000.png", t["prompt"])
+        self.assertIn("MASKED:github-token", t["prompt"])
+
+    def test_missing_ocr_is_noted_but_does_not_block(self):
+        r = compose.compose("q", CTX, SHOT, "region", agent="claude", ocr_missing=True)
+        self.assertIn("ocr_missing", r["notes"])
+        self.assertTrue(r["ok"])
+
+    def test_question_overrides_come_from_config(self):
+        r = compose.compose("", CTX, SHOT, "error", agent="claude", questions={"error": "Fix this please"})
+        self.assertEqual(r["question"], "Fix this please")
+        r = compose.compose("", CTX, SHOT, "error", agent="claude", questions={"error": "  "})
+        self.assertEqual(r["question"], "Explain this error and suggest a fix.")
+
     def test_default_question_per_mode(self):
         r = compose.compose("  ", CTX, SHOT, "error", agent="claude")
         self.assertEqual(r["question"], "Explain this error and suggest a fix.")

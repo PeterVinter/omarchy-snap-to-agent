@@ -92,7 +92,7 @@ def image_size(path, run=_runner.run):
         return 0, 0
 
 
-def shrink(path, run=_runner.run):
+def shrink(path, run=_runner.run, max_edge=None, max_bytes=None):
     """Scales to MAX_EDGE on the long side, then 15% smaller per step until under MAX_BYTES.
 
     Stops after 8 steps or before the short side would drop under MIN_EDGE.
@@ -100,11 +100,13 @@ def shrink(path, run=_runner.run):
     Returns True when the file was changed. Without ImageMagick the image is
     sent as captured and that is reported by the caller.
     """
-    code, _, _ = run(["magick", path, "-resize", "%dx%d>" % (MAX_EDGE, MAX_EDGE), "-strip", path])
+    max_edge = max_edge or MAX_EDGE
+    max_bytes = max_bytes or MAX_BYTES
+    code, _, _ = run(["magick", path, "-resize", "%dx%d>" % (max_edge, max_edge), "-strip", path])
     if code == 127:
         return False
     for _ in range(8):
-        if os.path.getsize(path) <= MAX_BYTES:
+        if os.path.getsize(path) <= max_bytes:
             break
         w, h = image_size(path, run)
         if min(w, h) * 0.85 < MIN_EDGE:
@@ -113,11 +115,13 @@ def shrink(path, run=_runner.run):
     return True
 
 
-def capture(mode, geometry=None, run=_runner.run):
+def capture(mode, geometry=None, run=_runner.run, guard=None, limits=None):
     """Captures and returns {path, geometry, width, height, bytes, window}.
 
     mode "region": geometry "x,y WxH" skips the selector (used by tests and the CLI).
     mode "window": the focused window.
+    guard(geometry, window) may raise CaptureError to stop before anything is captured.
+    limits is {"max_edge", "max_bytes"}.
     """
     win = None
     if mode == "region":
@@ -129,6 +133,8 @@ def capture(mode, geometry=None, run=_runner.run):
         g = window_geometry(win)
     else:
         raise CaptureError("bad-mode", "unknown mode: %s" % mode)
+    if guard:
+        guard(g, win)
     path = new_path()
     code, _, err = run(["grim", "-g", fmt_geometry(g), path], timeout=30)
     if code == 127:
@@ -136,7 +142,8 @@ def capture(mode, geometry=None, run=_runner.run):
     if code != 0 or not os.path.exists(path):
         raise CaptureError("capture-failed", (err or "grim failed").strip()[:200])
     os.chmod(path, 0o600)
-    shrunk = shrink(path, run)
+    limits = limits or {}
+    shrunk = shrink(path, run, limits.get("max_edge"), limits.get("max_bytes"))
     w, h = image_size(path, run)
     return {"path": path, "geometry": fmt_geometry(g), "width": w, "height": h,
             "bytes": os.path.getsize(path), "shrunk": shrunk, "window": win}

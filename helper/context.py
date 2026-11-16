@@ -28,6 +28,20 @@ def monitor_name(monitor_id, run=_runner.run):
     return ""
 
 
+def visible_windows(run=_runner.run):
+    """Every window that is on screen right now, most recently focused first."""
+    _, cout, _ = run(["hyprctl", "clients", "-j"])
+    _, mout, _ = run(["hyprctl", "monitors", "-j"])
+    try:
+        clients = json.loads(cout or "[]")
+        shown = {(m.get("activeWorkspace") or {}).get("id") for m in json.loads(mout or "[]")}
+    except ValueError:
+        return []
+    out = [c for c in clients if isinstance(c, dict) and c.get("mapped", True) and not c.get("hidden", False)
+           and (c.get("workspace") or {}).get("id") in shown]
+    return sorted(out, key=lambda c: c.get("focusHistoryID", 99))
+
+
 def window_at(x, y, run=_runner.run):
     """The most recently focused visible window that covers a screen point, or None.
 

@@ -8,6 +8,7 @@ import os
 import agents
 import context as ctxmod
 import mask as maskmod
+import ocr as _ocr
 
 DEFAULT_QUESTIONS = {
     "region": "Help me with what is on my screen.",
@@ -23,8 +24,21 @@ IMAGE_NOTES = {
 }
 
 
-def default_question(mode):
-    return DEFAULT_QUESTIONS.get(mode, DEFAULT_QUESTIONS["region"])
+SOURCE_LABELS = {
+    "error": "### The failed command",
+    "clipboard": "### Clipboard text",
+    "selection": "### Selected text",
+    "notification": "### Notification",
+}
+
+
+def default_question(mode, overrides=None):
+    text = (overrides or {}).get(mode)
+    return text if isinstance(text, str) and text.strip() else DEFAULT_QUESTIONS.get(mode, DEFAULT_QUESTIONS["region"])
+
+
+def ocr_kinds(text):
+    return _ocr.secret_kinds(text or "")
 
 
 def _fence(text):
@@ -41,7 +55,7 @@ def _fenced(label, text):
     return "%s\n%s\n%s\n%s" % (label, f, text.rstrip("\n"), f)
 
 
-def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_text="", send_image=True):
+def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_text="", send_image=True, source=None):
     """The markdown context block, unmasked. ctx and shot come from context.gather / capture."""
     ctx = ctx or {}
     lines = ["## Context (Omarchy Snap to Agent, %s capture)" % mode]
@@ -70,6 +84,8 @@ def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_te
     elif shot:
         lines.append("- Screenshot: not sent (text only)")
     parts = ["\n".join(lines)]
+    if source and str(source.get("text", "")).strip():
+        parts.append(_fenced(SOURCE_LABELS.get(source.get("kind"), "### Text"), str(source["text"]).strip()))
     if ocr_text and ocr_text.strip():
         parts.append(_fenced("### Text found in the screenshot (OCR, may contain errors)", ocr_text.strip()))
     if ctx.get("logs"):
@@ -77,7 +93,7 @@ def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_te
     return "\n\n".join(parts)
 
 
-def target(agent, cwd):
+def target(agent, cwd, has_image=True):
     """Who gets it and where, for the 'Sending to' line, plus note codes for the panel."""
     notes = []
     name, problem = (agent, "") if agent else agents.default_agent()
@@ -89,7 +105,7 @@ def target(agent, cwd):
         notes.append("generic_agent")
     elif ad["how"] != "arg":
         notes.append("clipboard_paste" if ad["how"] == "clipboard" else "stdin_prompt")
-    if agents.image_mode(name) == "path":
+    if has_image and agents.image_mode(name) == "path":
         notes.append("image_path_only")
     if not agents.installed(name):
         notes.append("agent_not_installed")
@@ -99,12 +115,15 @@ def target(agent, cwd):
 
 
 def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_image=True,
-            context_text=None, write_file=False):
+            context_text=None, write_file=False, source=None, ocr_missing=False, questions=None):
     """Returns the preview record. `context_text` replaces the generated block (the user edited it)."""
-    tgt = target(agent, (ctx or {}).get("cwd"))
+    has_image = bool(shot) and send_image
+    tgt = target(agent, (ctx or {}).get("cwd"), has_image)
     image_mode = tgt.get("image_mode", "path")
-    question = (question or "").strip() or default_question(mode)
-    block = context_text if context_text is not None else context_block(ctx, shot, mode, image_mode, ocr_text, send_image)
+    question = (question or "").strip() or default_question(mode, questions)
+    block = context_text if context_text is not None else context_block(
+        ctx, shot, mode, image_mode, ocr_text, send_image, source)
+    image_secrets = ocr_kinds(ocr_text) if shot else []
 
     qm = maskmod.mask(question, allow)
     cm = maskmod.mask(block, allow, start=len(qm["findings"]) + 1)
@@ -115,8 +134,16 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
         header += " %d likely secret(s) were replaced by [MASKED:...] placeholders." % masked_count
     prompt = "%s\n\n%s\n\n%s" % (qm["text"], header, cm["text"])
 
+    notes = list(tgt.get("notes", []))
+    if shot and image_secrets and send_image:
+        notes.append("image_has_secrets")
+    if shot and not send_image:
+        notes.append("image_not_sent")
+    if shot and ocr_missing:
+        notes.append("ocr_missing")
     result = {"ok": tgt.get("ok", False), "target": tgt, "question": qm["text"], "context": cm["text"],
-              "prompt": prompt, "full_prompt": prompt, "oversize": len(prompt) > INLINE_LIMIT, "file": "", "notes": list(tgt.get("notes", [])),
+              "image_secrets": image_secrets, "has_image": bool(shot),
+              "prompt": prompt, "full_prompt": prompt, "oversize": len(prompt) > INLINE_LIMIT, "file": "", "notes": notes,
               # Originals stay here; the panel only gets what it needs to show and undo.
               "findings": [{"id": f["id"], "kind": f["kind"], "masked": f["masked"], "placeholder": f["placeholder"]}
                            for f in findings]}

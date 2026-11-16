@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Command line for Omarchy Snap to Agent. Run it by its full path, or link it into ~/.local/bin.
+#   snap-to-agent install-hook | uninstall-hook | hook-status
+#   snap-to-agent capture region|window|error|clipboard   (prints JSON)
+here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+exec python3 -I "$here/helper/snap.py" "$@"
