@@ -14,6 +14,9 @@ def catalog(code):
 
 
 def placeholders(text):
+    """The %N holes of a string, or of every plural form of it."""
+    if isinstance(text, dict):
+        return sorted({h for form in text.values() for h in re.findall(r"%\d", form)})
     return sorted(re.findall(r"%\d", text))
 
 
@@ -33,10 +36,18 @@ class CatalogTests(unittest.TestCase):
             for key, text in en.items():
                 self.assertEqual(placeholders(text), placeholders(other[key]), "%s in %s" % (key, name))
 
+    def test_plural_entries_have_one_and_other(self):
+        for name in os.listdir(os.path.join(ROOT, "i18n")):
+            for key, text in catalog(name[:-5]).items():
+                if isinstance(text, dict):
+                    self.assertIn("other", text, "%s in %s" % (key, name))
+
     def test_no_empty_translations(self):
         for name in os.listdir(os.path.join(ROOT, "i18n")):
             for key, text in catalog(name[:-5]).items():
-                self.assertTrue(str(text).strip(), "%s empty in %s" % (key, name))
+                forms = text.values() if isinstance(text, dict) else [text]
+                for form in forms:
+                    self.assertTrue(str(form).strip(), "%s empty in %s" % (key, name))
 
 
 class UsageTests(unittest.TestCase):

@@ -33,7 +33,7 @@ omarchy plugin enable io.github.petervinter.snap-to-agent --section right
 
 Then bind a key (see [Suggested keybindings](#suggested-keybindings)) and it is one keystroke from anywhere. Requires Omarchy 4.x; everything else it needs ships with Omarchy. No sudo.
 
-> **Status: v0.2.** Five capture modes, OCR, a blocklist and the optional shell hook. History, a settings view and more languages are planned for v0.3, see [ROADMAP.md](ROADMAP.md).
+> **Status: v0.3.** Five capture modes, history, a settings view, OCR, a blocklist and the optional shell hook. English and Swedish are shipped; more languages are one file each. See [ROADMAP.md](ROADMAP.md).
 
 ## What it does
 
@@ -105,11 +105,35 @@ Every image capture is read with `tesseract`. If the text in the picture looks l
 
 The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region, and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title.
 
-Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json](config.example.json)): `ocr`, `image` limits, per-mode default `questions`, and the `blocklist` lists. A missing or broken file means the defaults. The settings view comes in v0.3.
+Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json](config.example.json)): `ocr`, `image` limits, per-mode default `questions`, and the `blocklist` lists. A missing or broken file means the defaults. The settings can also be changed in the panel.
+
+### History
+
+The panel keeps your last 20 sends: a thumbnail, which agent got it, in which folder, when, and your question. **Send again** opens the preview with that capture (it never sends by itself), **Delete** removes the entry and its files. Right-click the bar icon, or run `omarchy-shell io.github.petervinter.snap-to-agent history`.
+
+Only the masked question is kept in the list. The captured state needed to open an entry again (including the context as captured) is a separate file in `~/.cache/snap-to-agent/`, mode 600, removed with the entry.
+
+![History](docs/screenshots/06-history.png)
+
+### Settings
+
+Everything in `config.json` can be changed in the panel (the Settings tab, or `omarchy-shell io.github.petervinter.snap-to-agent settings`): OCR on or off, how long captures are kept (7 days by default, `0` keeps them), image size limits, a default question per mode, the blocklist, and the terminal-error hook, which is only installed after you confirm. **Save** writes the file with mode 600, **Reset to defaults** deletes it.
+
+![Settings](docs/screenshots/07-settings.png)
+
+### Captures are deleted after a week
+
+Screenshots, context files and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
+
+### Languages
+
+The panel follows Setup > Language. English and Swedish are included, and a language that is missing a string falls back to English per string. To add one, copy `i18n/en.json` to `i18n/<code>.json` (codes as in Omarchy's language list, for example `da` or `pt-BR`) and translate the values; `tests/test_i18n.py` checks that no key is missing. The text sent to the agent (the context block) stays in English on purpose.
+
+![The panel in Swedish](docs/screenshots/08-swedish.png)
 
 ## Use
 
-Click the bar icon for the capture menu, or call the commands below from a keybinding.
+Click the bar icon for the capture menu, right-click it for the history, or call the commands below from a keybinding.
 
 | Command | What it does |
 |---|---|
@@ -120,6 +144,8 @@ Click the bar icon for the capture menu, or call the commands below from a keybi
 | `omarchy-shell io.github.petervinter.snap-to-agent capture clipboard` | Send the selection or clipboard |
 | `omarchy-shell io.github.petervinter.snap-to-agent captureRegion "x,y WxH"` | A fixed area, for scripts |
 | `omarchy-shell io.github.petervinter.snap-to-agent resend` | Open the last capture again |
+| `omarchy-shell io.github.petervinter.snap-to-agent history` | Open the history |
+| `omarchy-shell io.github.petervinter.snap-to-agent settings` | Open the settings |
 | `omarchy-shell io.github.petervinter.snap-to-agent toggle` | Open or close the panel |
 | `omarchy-shell io.github.petervinter.snap-to-agent state` | Current state as JSON |
 

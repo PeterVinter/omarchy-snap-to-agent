@@ -17,7 +17,10 @@
   "context.label": "Context",
   "context.edited": "edited",
   "context.hint": "This text is sent with your question. You can edit it.",
-  "masked.title": "%1 likely secret(s) masked",
+  "masked.title": {
+    "one": "%1 likely secret masked",
+    "other": "%1 likely secrets masked"
+  },
   "masked.undo": "Click one to send it unmasked",
   "masked.reset": "Undoing a mask resets your edits to the context.",
   "button.send": "Send",

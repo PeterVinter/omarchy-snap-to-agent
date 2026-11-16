@@ -20,7 +20,10 @@
   "context.label": "Sammanhang",
   "context.edited": "ändrat",
   "context.hint": "Den här texten skickas med din fråga. Du kan ändra den.",
-  "masked.title": "%1 trolig(a) hemlighet(er) maskerade",
+  "masked.title": {
+    "one": "%1 trolig hemlighet maskerad",
+    "other": "%1 troliga hemligheter maskerade"
+  },
   "masked.undo": "Klicka på en för att skicka den omaskerad",
   "masked.reset": "Om du ångrar en maskering nollställs dina ändringar i sammanhanget.",
   "button.send": "Skicka",

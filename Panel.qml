@@ -37,6 +37,16 @@ Panel {
   property bool sendImage: true       // false = text only (masked), for screenshots that show secrets
   property var pickItems: []          // newest notifications, for the picker
   property int pickIndex: 0
+  property string page: "menu"        // menu | history | settings
+  property bool pageActive: false     // a page was asked for, so it shows even with a capture waiting
+  property var historyItems: []
+  property int historyIndex: 0
+  property var cfg: null              // settings being edited
+  property int cfgStamp: 0            // bumps when the text fields must be refilled
+  property var hookStatus: ({})
+  property string cfgPath: ""
+  property string settingsNote: ""
+  property bool hookConfirm: false
   property string errorCode: ""
   property string errorMessage: ""
   property real flashStamp: 0
@@ -56,6 +66,7 @@ Panel {
     : phase === "picking" ? "pick"
     : phase === "sending" ? "sending"
     : phase === "sent" || phase === "copied" ? "done"
+    : pageActive ? (page === "history" ? "history" : page === "settings" ? "settings" : "idle")
     : hasPreview ? (agentOk ? "ready" : "noagent")
     : "idle"
 
@@ -80,8 +91,16 @@ Panel {
 
   // ------------------------------------------------------------ helper calls
 
-  function stateForHelper() {
-    var s = { question: question, mode: snap.mode, capture: snap.capture, context: snap.context, allow: allow,
+  // What is sent as the question: typed text, else the translated default (the built-in
+  // one only; a default from the settings file comes from the helper as it is).
+  function finalQuestion() {
+    if (question.trim() !== "") return question
+    if (hasPreview && preview.default_source === "builtin") return strings.t("question.default." + snap.mode, "")
+    return ""
+  }
+
+  function stateForHelper(final) {
+    var s = { question: final ? finalQuestion() : question, mode: snap.mode, capture: snap.capture, context: snap.context, allow: allow,
               source: snap.source || null, ocr: snap.ocr || null, send_image: sendImage }
     if (contextEdited) s.context_text = contextText
     return s
@@ -99,12 +118,139 @@ Panel {
   function startCapture(mode, geometry) {
     if (busy) return
     clearError()
+    pageActive = false
     if (opened) close()
     phase = "capturing"
     // Give the panel a moment to leave the screen before the capture.
     startTimer.mode = mode
     startTimer.geometry = geometry || ""
     startTimer.restart()
+  }
+
+  function showPage(name) {
+    if (busy) return
+    clearError()
+    page = name
+    pageActive = true
+    hookConfirm = false
+    settingsNote = ""
+    if (name === "history") { historyIndex = 0; historyProc.running = true }
+    if (name === "settings") settingsGetProc.running = true
+    if (!opened) open()
+    Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+  }
+
+  function sendAgain(id) {
+    historyOpenProc.command = ["python3", "-I", root.helperPath, "history-open", String(id)]
+    historyOpenProc.running = true
+  }
+
+  function removeHistory(id) {
+    historyDelProc.command = ["python3", "-I", root.helperPath, "history-delete", String(id)]
+    historyDelProc.running = true
+  }
+
+  function setCfg(path, value) {
+    var c = JSON.parse(JSON.stringify(cfg))
+    var node = c
+    for (var i = 0; i < path.length - 1; i++) node = node[path[i]]
+    node[path[path.length - 1]] = value
+    cfg = c
+    settingsNote = ""
+  }
+
+  function listFrom(text) {
+    return String(text).split(",").map(function(x) { return x.trim() }).filter(function(x) { return x !== "" })
+  }
+
+  function saveSettings() {
+    settingsSetProc.payload = JSON.stringify({ config: cfg })
+    settingsSetProc.running = true
+  }
+
+  function setHook(on) {
+    hookConfirm = false
+    hookProc.command = on ? ["python3", "-I", root.helperPath, "install-hook", "--yes"]
+                          : ["python3", "-I", root.helperPath, "uninstall-hook"]
+    hookProc.running = true
+  }
+
+  Process {
+    id: historyProc
+    command: ["python3", "-I", root.helperPath, "history"]
+    stdout: StdioCollector { id: historyOut }
+    onExited: function(code) {
+      var r = root.parse(historyOut.text)
+      root.historyItems = r && r.ok ? r.items : []
+      root.historyIndex = 0
+    }
+  }
+
+  Process {
+    id: historyOpenProc
+    stdout: StdioCollector { id: historyOpenOut }
+    onExited: function(code) {
+      var r = root.parse(historyOpenOut.text)
+      if (r && r.ok) root.applySnap(r)
+      else { root.errorCode = "no-last"; root.errorMessage = "" }
+    }
+  }
+
+  Process {
+    id: historyDelProc
+    stdout: StdioCollector { id: historyDelOut }
+    onExited: function(code) { historyProc.running = true }
+  }
+
+  Process {
+    id: settingsGetProc
+    command: ["python3", "-I", root.helperPath, "settings-get"]
+    stdout: StdioCollector { id: settingsGetOut }
+    onExited: function(code) {
+      var r = root.parse(settingsGetOut.text)
+      if (r && r.ok) {
+        root.cfg = r.config
+        root.hookStatus = r.hook || ({})
+        root.cfgPath = String(r.path || "")
+        root.cfgStamp = root.cfgStamp + 1
+      } else {
+        root.settingsNote = "failed"
+      }
+    }
+  }
+
+  Process {
+    id: settingsSetProc
+    property string payload: ""
+    command: ["python3", "-I", root.helperPath, "settings-set"]
+    stdinEnabled: true
+    stdout: StdioCollector { id: settingsSetOut }
+    onStarted: write(payload + "\n")
+    onExited: function(code) {
+      var r = root.parse(settingsSetOut.text)
+      if (r && r.ok) { root.cfg = r.config; root.cfgStamp = root.cfgStamp + 1; root.settingsNote = "saved" }
+      else root.settingsNote = "failed"
+    }
+  }
+
+  Process {
+    id: settingsResetProc
+    command: ["python3", "-I", root.helperPath, "settings-reset"]
+    stdout: StdioCollector { id: settingsResetOut }
+    onExited: function(code) {
+      var r = root.parse(settingsResetOut.text)
+      if (r && r.ok) { root.cfg = r.config; root.cfgStamp = root.cfgStamp + 1; root.settingsNote = "saved" }
+    }
+  }
+
+  Process {
+    id: hookProc
+    stdout: StdioCollector { id: hookOut }
+    onExited: function(code) {
+      var r = root.parse(hookOut.text)
+      root.settingsNote = r && r.ok ? "hook" : "failed"
+      settingsGetProc.running = true
+    }
   }
 
   function startPick() {
@@ -162,7 +308,8 @@ Panel {
   function applySnap(data) {
     snap = { mode: data.mode, capture: data.capture || null, context: data.context, source: data.source || null,
              ocr: data.ocr || null }
-    question = ""
+    pageActive = false
+    question = data.question ? String(data.question) : ""
     allow = []
     sendImage = true
     contextEdited = false
@@ -186,13 +333,13 @@ Panel {
   function send() {
     if (!canSend) return
     phase = "sending"
-    sendProc.payload = JSON.stringify(stateForHelper())
+    sendProc.payload = JSON.stringify(stateForHelper(true))
     sendProc.running = true
   }
 
   function copy() {
     if (!hasPreview || phase !== "ready") return
-    copyProc.payload = JSON.stringify(stateForHelper())
+    copyProc.payload = JSON.stringify(stateForHelper(true))
     copyProc.running = true
   }
 
@@ -339,7 +486,8 @@ Panel {
       return "ok"
     }
     function resend(): string { root.resend(); return "ok" }
-    function settings(): string { root.open(); return "settings-not-yet" }
+    function settings(): string { root.showPage("settings"); return "ok" }
+    function history(): string { root.showPage("history"); return "ok" }
     function state(): string {
       return JSON.stringify({ view: root.view, phase: root.phase, opened: root.opened, agent: root.target.agent || "",
         cwd: root.target.cwd || "", masked: root.maskedFindings.length, error: root.errorCode })
@@ -369,7 +517,10 @@ Panel {
     tooltipText: root.phase === "capturing" ? strings.t("tooltip.busy")
       : root.phase === "ready" ? strings.t("tooltip.ready")
       : strings.t("tooltip.idle")
-    onPressed: function(buttonCode) { root.toggle() }
+    onPressed: function(buttonCode) {
+      if (buttonCode === Qt.RightButton) root.showPage("history")
+      else root.toggle()
+    }
   }
 
   Timer {
@@ -411,6 +562,16 @@ Panel {
           if (event.key === Qt.Key_Down || event.key === Qt.Key_J) root.pickIndex = Math.min(root.pickItems.length - 1, root.pickIndex + 1)
           else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) root.pickIndex = Math.max(0, root.pickIndex - 1)
           else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.choose(root.pickIndex)
+          else return
+          event.accepted = true
+          return
+        }
+        if (root.view === "history") {
+          var n = root.historyItems.length
+          if (event.key === Qt.Key_Down || event.key === Qt.Key_J) root.historyIndex = Math.min(n - 1, root.historyIndex + 1)
+          else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) root.historyIndex = Math.max(0, root.historyIndex - 1)
+          else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && n > 0) root.sendAgain(root.historyItems[root.historyIndex].id)
+          else if (event.key === Qt.Key_Delete && n > 0) root.removeHistory(root.historyItems[root.historyIndex].id)
           else return
           event.accepted = true
           return
@@ -503,6 +664,28 @@ Panel {
 
         PanelSeparator { foreground: root.fg }
 
+        // Tabs, shown on the three pages
+        Row {
+          visible: root.view === "idle" || root.view === "history" || root.view === "settings"
+          width: parent.width
+          spacing: Style.spacing.controlGap
+
+          Repeater {
+            model: ["menu", "history", "settings"]
+            Button {
+              required property string modelData
+              width: (column.width - Style.spacing.controlGap * 2) / 3
+              text: strings.t(modelData === "menu" ? "tab.capture" : "tab." + modelData)
+              bordered: true
+              focusable: true
+              selected: (root.pageActive ? root.page : "menu") === modelData
+              foreground: root.fg
+              onClicked: root.showPage(modelData)
+              Keys.onEscapePressed: root.close()
+            }
+          }
+        }
+
         // Idle: choose what to capture
         StateNote {
           visible: root.view === "idle"
@@ -570,6 +753,463 @@ Panel {
           visible: root.view === "capturing"
           title: ""
           text: strings.t("capturing.body")
+        }
+
+        // History
+        Column {
+          visible: root.view === "history"
+          width: parent.width
+          spacing: Style.space(6)
+
+          StateNote {
+            visible: root.historyItems.length === 0
+            title: strings.t("history.empty.title")
+            text: strings.t("history.empty.body")
+          }
+
+          Flickable {
+            id: historyFlick
+            visible: root.historyItems.length > 0
+            width: parent.width
+            height: Math.min(historyList.implicitHeight, Style.space(430))
+            contentWidth: width
+            contentHeight: historyList.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            Column {
+              id: historyList
+              width: historyFlick.width - (historyFlick.interactive ? Style.space(10) : 0)
+              spacing: Style.space(6)
+
+              Repeater {
+                model: root.historyItems
+                BorderSurface {
+                  id: hrow
+                  required property var modelData
+                  required property int index
+                  width: historyList.width
+                  implicitHeight: Math.max(hthumb.height, htext.implicitHeight) + Style.space(14)
+                  height: implicitHeight
+                  radius: Style.cornerRadius
+                  readonly property bool current: index === root.historyIndex
+                  color: current ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : "transparent"
+                  borderSpec: Border.flat(current ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.2),
+                                          Math.max(1, Style.normalBorderWidth))
+
+                  MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onEntered: root.historyIndex = hrow.index
+                  }
+
+                  Rectangle {
+                    id: hthumb
+                    anchors.left: parent.left
+                    anchors.leftMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Style.space(64)
+                    height: Style.space(44)
+                    radius: Style.cornerRadius
+                    color: Style.normalFillFor(root.fg, root.accent)
+                    clip: true
+
+                    Image {
+                      anchors.fill: parent
+                      visible: hrow.modelData.thumb !== ""
+                      source: hrow.modelData.thumb !== "" ? "file://" + hrow.modelData.thumb : ""
+                      fillMode: Image.PreserveAspectCrop
+                      asynchronous: true
+                      sourceSize.width: 200
+                      cache: false
+                    }
+
+                    Text {
+                      anchors.centerIn: parent
+                      visible: hrow.modelData.thumb === ""
+                      textFormat: Text.PlainText
+                      text: strings.t("modeShort." + hrow.modelData.mode, strings.t("history.noImage"))
+                      color: root.dim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+                  }
+
+                  Column {
+                    id: htext
+                    anchors.left: hthumb.right
+                    anchors.leftMargin: Style.space(10)
+                    anchors.right: hactions.left
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(2)
+
+                    Text {
+                      textFormat: Text.PlainText
+                      width: parent.width
+                      text: hrow.modelData.display + "  ·  " + hrow.modelData.cwd.replace(/^\/home\/[^/]+/, "~")
+                      color: hrow.current ? root.accent : root.fg
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                      elide: Text.ElideMiddle
+                    }
+                    Text {
+                      textFormat: Text.PlainText
+                      width: parent.width
+                      text: Qt.formatDateTime(new Date(hrow.modelData.time * 1000), "yyyy-MM-dd hh:mm") + "  ·  "
+                            + strings.t("modeShort." + hrow.modelData.mode, hrow.modelData.mode)
+                            + (hrow.modelData.question ? "  ·  " + hrow.modelData.question : "")
+                      color: root.dim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      elide: Text.ElideRight
+                    }
+                  }
+
+                  Row {
+                    id: hactions
+                    anchors.right: parent.right
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(6)
+
+                    Button {
+                      text: strings.t("history.sendAgain")
+                      bordered: true
+                      focusable: true
+                      enabled: hrow.modelData.available
+                      opacity: enabled ? 1 : 0.45
+                      foreground: root.fg
+                      onClicked: root.sendAgain(hrow.modelData.id)
+                      Keys.onEscapePressed: root.close()
+                    }
+                    Button {
+                      text: strings.t("history.delete")
+                      bordered: true
+                      focusable: true
+                      foreground: root.warn
+                      onClicked: root.removeHistory(hrow.modelData.id)
+                      Keys.onEscapePressed: root.close()
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          Text {
+            visible: root.historyItems.length > 0
+            textFormat: Text.PlainText
+            width: parent.width
+            text: strings.t("history.hint")
+            color: root.faint
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+          }
+        }
+
+        // Settings
+        Flickable {
+          id: settingsFlick
+          visible: root.view === "settings" && root.cfg !== null
+          width: parent.width
+          height: visible ? Math.min(settingsBody.implicitHeight, Style.space(500)) : 0
+          contentWidth: width
+          contentHeight: settingsBody.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          interactive: contentHeight > height
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+          Column {
+            id: settingsBody
+            width: settingsFlick.width - (settingsFlick.interactive ? Style.space(10) : 0)
+            spacing: Style.space(12)
+
+            Toggle {
+              width: parent.width
+              label: strings.t("settings.ocr")
+              description: strings.t("settings.ocr.desc")
+              checked: root.cfg ? root.cfg.ocr : true
+              foreground: root.fg
+              accent: root.accent
+              onClicked: root.setCfg(["ocr"], !root.cfg.ocr)
+            }
+
+            NumberField {
+              width: parent.width
+              label: strings.t("settings.retention")
+              value: root.cfg ? root.cfg.retention_days : 7
+              from: 0
+              to: 3650
+              foreground: root.fg
+              accent: root.accent
+              onModified: function(v) { root.setCfg(["retention_days"], v) }
+            }
+
+            NumberField {
+              width: parent.width
+              label: strings.t("settings.maxEdge")
+              value: root.cfg ? root.cfg.image.max_edge : 1920
+              from: 200
+              to: 8000
+              stepSize: 100
+              foreground: root.fg
+              accent: root.accent
+              onModified: function(v) { root.setCfg(["image", "max_edge"], v) }
+            }
+
+            NumberField {
+              width: parent.width
+              label: strings.t("settings.maxMb")
+              value: root.cfg ? Math.round(root.cfg.image.max_bytes / 1000000) : 2
+              from: 1
+              to: 20
+              foreground: root.fg
+              accent: root.accent
+              onModified: function(v) { root.setCfg(["image", "max_bytes"], v * 1000000) }
+            }
+
+            PanelSeparator { foreground: root.fg }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: strings.t("settings.questions")
+              color: root.fg
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+
+            Repeater {
+              model: ["region", "window", "error", "notification", "clipboard"]
+              Column {
+                id: qrow
+                required property string modelData
+                width: settingsBody.width
+                spacing: Style.space(3)
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: strings.t("modeShort." + qrow.modelData)
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+                TextField {
+                  id: qfield
+                  width: parent.width
+                  foreground: root.fg
+                  placeholderText: strings.t("question.default." + qrow.modelData)
+                  maximumLength: 500
+                  selectByMouse: true
+                  function refill() { text = root.cfg && root.cfg.questions[qrow.modelData] ? root.cfg.questions[qrow.modelData] : "" }
+                  Component.onCompleted: refill()
+                  onTextEdited: {
+                    var q = JSON.parse(JSON.stringify(root.cfg.questions))
+                    if (text.trim() === "") delete q[qrow.modelData]
+                    else q[qrow.modelData] = text
+                    root.setCfg(["questions"], q)
+                  }
+                  Connections { target: root; function onCfgStampChanged() { qfield.refill() } }
+                  Keys.onEscapePressed: root.close()
+                }
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: strings.t("settings.questions.hint")
+              color: root.faint
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+
+            PanelSeparator { foreground: root.fg }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: strings.t("settings.blocklist")
+              color: root.fg
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+
+            Column {
+              width: parent.width
+              spacing: Style.space(3)
+              Text {
+                textFormat: Text.PlainText
+                text: strings.t("settings.blocklist.classes")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+              TextField {
+                id: classesField
+                width: parent.width
+                foreground: root.fg
+                selectByMouse: true
+                function refill() { text = root.cfg ? root.cfg.blocklist.classes.join(", ") : "" }
+                Component.onCompleted: refill()
+                onTextEdited: root.setCfg(["blocklist", "classes"], root.listFrom(text))
+                Connections { target: root; function onCfgStampChanged() { classesField.refill() } }
+                Keys.onEscapePressed: root.close()
+              }
+            }
+
+            Column {
+              width: parent.width
+              spacing: Style.space(3)
+              Text {
+                textFormat: Text.PlainText
+                text: strings.t("settings.blocklist.titles")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+              TextField {
+                id: titlesField
+                width: parent.width
+                foreground: root.fg
+                selectByMouse: true
+                function refill() { text = root.cfg ? root.cfg.blocklist.titles.join(", ") : "" }
+                Component.onCompleted: refill()
+                onTextEdited: root.setCfg(["blocklist", "titles"], root.listFrom(text))
+                Connections { target: root; function onCfgStampChanged() { titlesField.refill() } }
+                Keys.onEscapePressed: root.close()
+              }
+            }
+
+            PanelSeparator { foreground: root.fg }
+
+            Column {
+              id: hookCol
+              width: parent.width
+              spacing: Style.space(6)
+              readonly property bool installed: !!root.hookStatus.bash || !!root.hookStatus.zsh
+
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                text: strings.t("settings.hook")
+                color: root.fg
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+              }
+              Text {
+                textFormat: Text.PlainText
+                width: parent.width
+                text: (hookCol.installed ? strings.t("settings.hook.on") : strings.t("settings.hook.off"))
+                      + (root.settingsNote === "hook" ? "  " + strings.t("settings.hook.done") : "")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.WordWrap
+              }
+              Text {
+                visible: root.hookConfirm
+                textFormat: Text.PlainText
+                width: parent.width
+                text: strings.t("settings.hook.confirm")
+                color: root.fg
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.WordWrap
+              }
+              Row {
+                spacing: Style.spacing.controlGap
+                Button {
+                  visible: !hookCol.installed && !root.hookConfirm
+                  text: strings.t("settings.hook.install")
+                  bordered: true
+                  focusable: true
+                  foreground: root.fg
+                  onClicked: root.hookConfirm = true
+                  Keys.onEscapePressed: root.close()
+                }
+                Button {
+                  visible: !hookCol.installed && root.hookConfirm
+                  text: strings.t("settings.hook.install")
+                  bordered: true
+                  focusable: true
+                  selected: true
+                  foreground: root.fg
+                  onClicked: root.setHook(true)
+                  Keys.onEscapePressed: root.hookConfirm = false
+                }
+                Button {
+                  visible: !hookCol.installed && root.hookConfirm
+                  text: strings.t("button.cancel")
+                  bordered: true
+                  focusable: true
+                  foreground: root.fg
+                  onClicked: root.hookConfirm = false
+                  Keys.onEscapePressed: root.hookConfirm = false
+                }
+                Button {
+                  visible: hookCol.installed
+                  text: strings.t("settings.hook.remove")
+                  bordered: true
+                  focusable: true
+                  foreground: root.fg
+                  onClicked: root.setHook(false)
+                  Keys.onEscapePressed: root.close()
+                }
+              }
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: strings.t("settings.file").arg(root.cfgPath.replace(/^\/home\/[^/]+/, "~"))
+              color: root.faint
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WrapAnywhere
+            }
+          }
+        }
+
+        RowLayout {
+          visible: root.view === "settings" && root.cfg !== null
+          width: parent.width
+          spacing: Style.spacing.controlGap
+
+          Text {
+            textFormat: Text.PlainText
+            Layout.fillWidth: true
+            text: root.settingsNote === "saved" ? strings.t("settings.saved") : (root.settingsNote === "failed" ? strings.t("settings.failed") : "")
+            color: root.settingsNote === "failed" ? root.warn : root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+          Button {
+            text: strings.t("settings.reset")
+            bordered: true
+            focusable: true
+            foreground: root.fg
+            onClicked: settingsResetProc.running = true
+            Keys.onEscapePressed: root.close()
+          }
+          Button {
+            text: strings.t("settings.save")
+            bordered: true
+            focusable: true
+            selected: true
+            foreground: root.fg
+            onClicked: root.saveSettings()
+            Keys.onEscapePressed: root.close()
+          }
         }
 
         // Notification picker
@@ -824,7 +1464,9 @@ Panel {
             id: questionField
             width: parent.width
             foreground: root.fg
-            placeholderText: root.hasPreview && root.preview.question ? root.preview.question : strings.t("question.placeholder")
+            placeholderText: root.hasPreview && root.preview.default_source === "builtin" && root.snap
+              ? strings.t("question.default." + root.snap.mode, root.preview.question)
+              : (root.hasPreview && root.preview.question ? root.preview.question : strings.t("question.placeholder"))
             maximumLength: 2000
             selectByMouse: true
             onTextChanged: {
@@ -835,6 +1477,10 @@ Panel {
             }
             onAccepted: root.send()
             Keys.onEscapePressed: root.close()
+            Connections {
+              target: root
+              function onQuestionChanged() { if (questionField.text !== root.question) questionField.text = root.question }
+            }
             Keys.onPressed: function(event) {
               if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && (event.modifiers & Qt.ControlModifier)) {
                 root.copy()
@@ -853,7 +1499,7 @@ Panel {
           Text {
             textFormat: Text.PlainText
             width: parent.width
-            text: strings.t("masked.title").arg(root.maskedFindings.length)
+            text: strings.tn("masked.title", root.maskedFindings.length).arg(root.maskedFindings.length)
             color: root.warn
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
