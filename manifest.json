@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.petervinter.snap-to-agent",
+  "name": "Omarchy Snap to Agent",
+  "version": "0.1.0",
+  "author": "Peter Vinter",
+  "license": "MIT",
+  "description": "One keystroke sends what you are looking at, with context, to the default AI agent you chose in Omarchy. Always shows a preview first and masks likely secrets.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Omarchy Snap to Agent",
+    "description": "Send a screen region or window to your default agent, with context and a preview.",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
