@@ -1,10 +1,38 @@
+<div align="center">
+
 # Omarchy Snap to Agent
 
-One keystroke sends what you are looking at, with context, to the **default agent you chose in Omarchy**. It is not tied to one agent: it reads Setup > Defaults > Agent every time you send, so a changed default takes effect immediately.
+**Send what is on your screen to your default AI agent, with the context it needs to help right away.**
 
-> **Status: v0.1.** Region and window capture, agent adapters with a generic fallback, working directory, text masking, preview, theme following. Last terminal error, notifications, clipboard, OCR, blocklist, history, settings and more languages come in v0.2 and v0.3. See [ROADMAP.md](ROADMAP.md).
+Select a region or a window, check the preview, press Enter. Your agent opens in the right folder with the screenshot, the app and window title and, when you capture a terminal, its folder and git branch already attached. No copying, no pasting, no explaining.
 
-![Preview in Ristretto](docs/screenshots/03-ready-ristretto.png)
+<img src="preview.png" alt="The Snap to Agent panel in a dark and a light Omarchy theme: thumbnail, target agent and folder, question, masked secrets and context" width="900">
+
+</div>
+
+## Why you will want it
+
+- **It uses the agent you already chose.** It reads Omarchy's default agent every time you send, so changing it in Setup takes effect at once. Claude Code, Codex, Grok, OpenCode and all the others Omarchy lists have an adapter; anything new falls back gracefully.
+- **It asks before it acts.** The agent starts in its normal ask-first mode. Omarchy's own launcher adds auto-approve flags to most agents; this plugin never does.
+- **You see everything before it leaves.** The preview shows who gets it and in which folder. Likely secrets (API keys, tokens, passwords, private keys) are masked first, and you can undo each mask with one click.
+- **It looks like Omarchy.** Colours, fonts, corners and spacing come from your theme, and switching theme updates the panel live.
+
+## In your theme
+
+| Tokyo Night | Catppuccin Latte | Ristretto |
+|---|---|---|
+| ![Tokyo Night](docs/screenshots/01-ready-tokyo-night.png) | ![Catppuccin Latte](docs/screenshots/02-ready-catppuccin-latte.png) | ![Ristretto](docs/screenshots/03-ready-ristretto.png) |
+
+## Install
+
+```bash
+omarchy plugin add https://github.com/PeterVinter/omarchy-snap-to-agent.git --yes
+omarchy plugin enable io.github.petervinter.snap-to-agent --section right
+```
+
+Then bind a key (see [Suggested keybindings](#suggested-keybindings)) and it is one keystroke from anywhere. Requires Omarchy 4.x; everything else it needs ships with Omarchy. No sudo.
+
+> **Status: v0.1.** Region and window capture. Last terminal error, notifications, clipboard, OCR, history and settings are planned, see [ROADMAP.md](ROADMAP.md).
 
 ## What it does
 
