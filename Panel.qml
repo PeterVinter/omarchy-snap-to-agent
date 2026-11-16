@@ -47,6 +47,8 @@ Panel {
   property string cfgPath: ""
   property string settingsNote: ""
   property bool hookConfirm: false
+  property bool questionsOpen: false
+  property bool blocklistOpen: false
   property string errorCode: ""
   property string errorMessage: ""
   property real flashStamp: 0
@@ -69,6 +71,10 @@ Panel {
     : pageActive ? (page === "history" ? "history" : page === "settings" ? "settings" : "idle")
     : hasPreview ? (agentOk ? "ready" : "noagent")
     : "idle"
+
+  // The most height the panel will ever have: its own cap, or the screen if that is smaller.
+  // Scrolling lists are sized from this so the buttons below them never leave the panel.
+  readonly property real listRoom: Math.min(Style.space(820), panel.availableCardHeight)
 
   readonly property string helperPath: Qt.resolvedUrl("helper/snap.py").toString().replace(/^file:\/\//, "")
 
@@ -771,7 +777,7 @@ Panel {
             id: historyFlick
             visible: root.historyItems.length > 0
             width: parent.width
-            height: Math.min(historyList.implicitHeight, Style.space(430))
+            height: Math.min(historyList.implicitHeight, Math.max(Style.space(160), root.listRoom - Style.space(270)))
             contentWidth: width
             contentHeight: historyList.implicitHeight
             clip: true
@@ -917,13 +923,13 @@ Panel {
           id: settingsFlick
           visible: root.view === "settings" && root.cfg !== null
           width: parent.width
-          height: visible ? Math.min(settingsBody.implicitHeight, Style.space(500)) : 0
+          height: visible ? Math.min(settingsBody.implicitHeight, Math.max(Style.space(200), root.listRoom - Style.space(250))) : 0
           contentWidth: width
           contentHeight: settingsBody.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
           interactive: contentHeight > height
-          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          ScrollBar.vertical: ScrollBar { policy: settingsFlick.interactive ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
 
           Column {
             id: settingsBody
@@ -986,14 +992,11 @@ Panel {
 
             PanelSeparator { foreground: root.fg }
 
-            Text {
-              textFormat: Text.PlainText
+            Disclosure {
               width: parent.width
-              text: strings.t("settings.questions")
-              color: root.fg
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
+              label: strings.t("settings.questions")
+              open: root.questionsOpen
+              onToggled: root.questionsOpen = !root.questionsOpen
             }
 
             Repeater {
@@ -1001,6 +1004,7 @@ Panel {
               Column {
                 id: qrow
                 required property string modelData
+                visible: root.questionsOpen
                 width: settingsBody.width
                 spacing: Style.space(3)
 
@@ -1033,6 +1037,7 @@ Panel {
             }
 
             Text {
+              visible: root.questionsOpen
               textFormat: Text.PlainText
               width: parent.width
               text: strings.t("settings.questions.hint")
@@ -1043,17 +1048,15 @@ Panel {
 
             PanelSeparator { foreground: root.fg }
 
-            Text {
-              textFormat: Text.PlainText
+            Disclosure {
               width: parent.width
-              text: strings.t("settings.blocklist")
-              color: root.fg
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              font.bold: true
+              label: strings.t("settings.blocklist")
+              open: root.blocklistOpen
+              onToggled: root.blocklistOpen = !root.blocklistOpen
             }
 
             Column {
+              visible: root.blocklistOpen
               width: parent.width
               spacing: Style.space(3)
               Text {
@@ -1077,6 +1080,7 @@ Panel {
             }
 
             Column {
+              visible: root.blocklistOpen
               width: parent.width
               spacing: Style.space(3)
               Text {
@@ -1764,6 +1768,54 @@ Panel {
         anchors.horizontalCenter: parent.horizontalCenter
         y: -Math.round(width / 4)
       }
+    }
+  }
+
+  // A heading that folds a section open and closed. Tab focus and Enter/Space work too.
+  component Disclosure: Item {
+    id: disc
+    property string label: ""
+    property bool open: false
+    signal toggled()
+
+    height: discLabel.implicitHeight + Style.space(10)
+    activeFocusOnTab: true
+    Keys.onEscapePressed: root.close()
+    Keys.onPressed: function(event) {
+      if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+        disc.toggled()
+        event.accepted = true
+      }
+    }
+
+    Row {
+      spacing: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+
+      Text {
+        textFormat: Text.PlainText
+        text: root.glyphChevron
+        color: disc.activeFocus ? root.accent : root.dim
+        rotation: disc.open ? 90 : 0
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        Behavior on rotation { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
+      }
+      Text {
+        id: discLabel
+        textFormat: Text.PlainText
+        text: disc.label
+        color: disc.activeFocus ? root.accent : root.fg
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+      }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      cursorShape: Qt.PointingHandCursor
+      onClicked: disc.toggled()
     }
   }
 
