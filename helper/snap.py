@@ -91,16 +91,18 @@ def _capture_image(mode, geometry, cfg):
         focused = capture.active_window()
     except capture.CaptureError:
         focused = None
-    shot = capture.capture(mode, geometry, guard=_guard_for(cfg), limits=cfg["image"])
+    shot = capture.capture(mode, geometry, guard=_guard_for(cfg), limits=cfg["image"], region_tool=cfg["region_tool"])
     win = shot.pop("window", None)
     source = "window" if win else ""
-    if mode == "region" and not win:
+    if mode == "region" and not win and not shot["geometry"]:
+        source = "focused-region-unknown"   # omasnap gives the picture but not where it was
+    elif mode == "region" and not win:
         x, y, w, h = capture.parse_geometry(shot["geometry"])
         win = context.window_at(x + w // 2, y + h // 2)
         source = "under-region" if win else ""
     if not win:
-        win, source = focused, "focused"
-    return _finish(mode, shot, win, None, cfg, window_source=source)
+        win, source = focused, (source or "focused")
+    return _finish(mode, shot, win, None, cfg, window_source=source, focused=focused)
 
 
 def _capture_error(cfg):

@@ -40,6 +40,11 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(cfg["blocklist"]["classes"], ["myvault"])
         self.assertIn("incognito", cfg["blocklist"]["titles"])  # the bad titles list is ignored whole
 
+    def test_region_tool_accepts_only_known_values(self):
+        self.assertEqual(config.load(self.write(json.dumps({"region_tool": "slurp"})))["region_tool"], "slurp")
+        self.assertEqual(config.load(self.write(json.dumps({"region_tool": "rm -rf"})))["region_tool"], "auto")
+        self.assertEqual(config.load(self.write(json.dumps({"region_tool": 3})))["region_tool"], "auto")
+
     def test_questions_keep_only_strings(self):
         cfg = config.load(self.write(json.dumps({"questions": {"error": "Fix it", "window": 3}})))
         self.assertEqual(cfg["questions"], {"error": "Fix it"})

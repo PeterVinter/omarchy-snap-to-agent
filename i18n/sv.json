@@ -126,5 +126,6 @@
   "error.bad-mode": "Okänt fångstläge",
   "error.bad-input": "Hjälpprogrammet fick data det inte kunde läsa",
   "error.internal": "Hjälpprogrammet stötte på ett oväntat fel",
-  "error.no-agent": "Ingen agent att starta"
+  "error.no-agent": "Ingen agent att starta",
+  "error.missing-omasnap": "omasnap är inte installerat"
 }

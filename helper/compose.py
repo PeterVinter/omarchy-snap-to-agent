@@ -64,6 +64,8 @@ def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_te
     lines.append('- App: %s%s' % (app, ' - "%s"' % title if title else ""))
     if mode == "region" and ctx.get("window_source") == "focused":
         lines.append("  (This is the focused window; no window was found under the selected region.)")
+    elif mode == "region" and ctx.get("window_source") == "focused-region-unknown":
+        lines.append("  (This is the focused window; the selected region may show something else.)")
     where = ["workspace %s" % ctx["workspace"]] if ctx.get("workspace") else []
     if ctx.get("monitor"):
         where.append("monitor %s" % ctx["monitor"])

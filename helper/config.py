@@ -11,6 +11,7 @@ DEFAULTS = {
     "retention_days": 7,
     "ocr": True,
     "hook": False,
+    "region_tool": "auto",  # auto | omasnap | slurp
     "image": {"max_edge": 1920, "max_bytes": 2_000_000},
     "questions": {},  # mode -> text, overrides compose.DEFAULT_QUESTIONS
     "blocklist": {
@@ -41,6 +42,9 @@ def _merge(default, given):
         got = given[key]
         if isinstance(value, dict) and isinstance(got, dict):
             out[key] = _merge(value, got) if value else {k: str(v) for k, v in got.items() if isinstance(v, str)}
+        elif key == "region_tool":
+            if got in ("auto", "omasnap", "slurp"):
+                out[key] = got
         elif isinstance(value, bool):
             if isinstance(got, bool):
                 out[key] = got

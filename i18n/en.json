@@ -126,5 +126,6 @@
   "error.bad-mode": "Unknown capture mode",
   "error.bad-input": "The helper got unreadable input",
   "error.internal": "The helper hit an unexpected error",
-  "error.no-agent": "No agent to start"
+  "error.no-agent": "No agent to start",
+  "error.missing-omasnap": "omasnap is not installed"
 }

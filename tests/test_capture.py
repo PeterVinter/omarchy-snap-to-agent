@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "helper"))
 import capture  # noqa: E402
@@ -13,8 +14,9 @@ WINDOW = {"address": "0x1", "at": [12, 38], "size": [1896, 1030], "class": "foot
 class Fake:
     """Stands in for runner.run. Records calls; grim writes a file of a chosen size."""
 
-    def __init__(self, window=WINDOW, slurp=(0, "100,200 300x400\n"), grim_code=0, size=1000):
+    def __init__(self, window=WINDOW, slurp=(0, "100,200 300x400\n"), grim_code=0, size=1000, omasnap="saves"):
         self.calls, self.window, self.slurp, self.grim_code, self.size = [], window, slurp, grim_code, size
+        self.omasnap = omasnap
 
     def __call__(self, argv, timeout=15, input=None):
         self.calls.append(argv)
@@ -28,6 +30,15 @@ class Fake:
                 with open(argv[-1], "wb") as f:
                     f.write(b"x" * self.size)
             return self.grim_code, "", "boom" if self.grim_code else ""
+        if cmd == "env" and "omasnap" in argv:
+            self.omasnap_calls = getattr(self, "omasnap_calls", 0) + 1
+            if self.omasnap == "missing":
+                return 127, "", "no such file"
+            if self.omasnap == "saves":
+                folder = [a for a in argv if a.startswith("OMASNAP_SCREENSHOT_DIR=")][0].split("=", 1)[1]
+                with open(os.path.join(folder, "Screenshot_x.png"), "wb") as f:
+                    f.write(b"x" * 500)
+            return 0, "", ""
         if cmd == "magick" and argv[1] == "identify":
             return 0, "1920 1080", ""
         if cmd == "magick":
@@ -71,11 +82,11 @@ class CaptureTests(unittest.TestCase):
 
     def test_region_selector_and_cancel(self):
         fake = Fake()
-        capture.capture("region", run=fake)
+        capture.capture("region", run=fake, region_tool="slurp")
         grim = [c for c in fake.calls if c[0] == "grim"][0]
         self.assertEqual(grim[2], "100,200 300x400")
         with self.assertRaises(capture.CaptureError) as cm:
-            capture.capture("region", run=Fake(slurp=(1, "")))
+            capture.capture("region", run=Fake(slurp=(1, "")), region_tool="slurp")
         self.assertEqual(cm.exception.code, "cancelled")
 
     def test_errors_are_named(self):
@@ -107,6 +118,78 @@ class CaptureTests(unittest.TestCase):
         resizes = [c for c in fake.calls if c[0] == "magick" and "-resize" in c]
         self.assertEqual(len(resizes), 1)
         self.assertIn("1920x1920>", resizes[0])
+
+
+class OmasnapRegionTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["SNAP_TO_AGENT_CACHE"] = self.tmp.name
+        self.which = unittest.mock.patch("capture.shutil.which", lambda name: "/usr/bin/omasnap" if name == "omasnap" else None)
+        self.which.start()
+
+    def tearDown(self):
+        self.which.stop()
+        self.tmp.cleanup()
+        os.environ.pop("SNAP_TO_AGENT_CACHE", None)
+
+    def test_region_uses_omasnap_and_returns_the_saved_picture(self):
+        fake = Fake()
+        r = capture.capture("region", run=fake)
+        self.assertEqual(r["tool"], "omasnap")
+        self.assertEqual(r["geometry"], "")
+        self.assertTrue(os.path.exists(r["path"]))
+        self.assertTrue(r["path"].startswith(self.tmp.name) and r["path"].endswith(".png"))
+        self.assertEqual(oct(os.stat(r["path"]).st_mode & 0o777), "0o600")
+        self.assertFalse(any(c[0] == "slurp" or c[0] == "grim" for c in fake.calls))
+        self.assertEqual([f for f in os.listdir(self.tmp.name) if f.startswith(".omasnap-")], [], "temp folder is removed")
+
+    def test_omasnap_is_told_where_to_save_and_to_save_only(self):
+        fake = Fake()
+        capture.capture("region", run=fake)
+        call = [c for c in fake.calls if "omasnap" in c][0]
+        self.assertEqual(call[0], "env")
+        self.assertTrue(call[1].startswith("OMASNAP_SCREENSHOT_DIR=" + self.tmp.name))
+        self.assertEqual(call[2:], ["omasnap", "--capture-region", "--save"])
+
+    def test_no_picture_means_cancelled(self):
+        with self.assertRaises(capture.CaptureError) as cm:
+            capture.capture("region", run=Fake(omasnap="cancels"))
+        self.assertEqual(cm.exception.code, "cancelled")
+        self.assertEqual([f for f in os.listdir(self.tmp.name) if f.startswith(".omasnap-")], [])
+
+    def test_the_guard_runs_before_omasnap_starts(self):
+        fake = Fake()
+
+        def guard(geometry, win):
+            self.assertIsNone(geometry)
+            self.assertIsNone(win)
+            raise capture.CaptureError("blocked", "no")
+        with self.assertRaises(capture.CaptureError) as cm:
+            capture.capture("region", run=fake, guard=guard)
+        self.assertEqual(cm.exception.code, "blocked")
+        self.assertEqual(getattr(fake, "omasnap_calls", 0), 0)
+
+    def test_preference_and_fallbacks(self):
+        self.assertEqual(capture.pick_region_tool("auto"), "omasnap")
+        self.assertEqual(capture.pick_region_tool("slurp"), "slurp")
+        self.which.stop()
+        try:
+            with unittest.mock.patch("capture.shutil.which", lambda name: None):
+                self.assertEqual(capture.pick_region_tool("auto"), "slurp")
+                self.assertEqual(capture.pick_region_tool("omasnap"), "slurp")
+        finally:
+            self.which.start()
+
+    def test_a_fixed_geometry_never_opens_a_selector(self):
+        fake = Fake()
+        capture.capture("region", "5,6 70x80", run=fake)
+        self.assertEqual(getattr(fake, "omasnap_calls", 0), 0)
+
+    def test_slurp_still_works_when_chosen(self):
+        fake = Fake()
+        r = capture.capture("region", run=fake, region_tool="slurp")
+        self.assertTrue(any(c[0] == "slurp" for c in fake.calls))
+        self.assertEqual(r["geometry"], "100,200 300x400")
 
 
 if __name__ == "__main__":
