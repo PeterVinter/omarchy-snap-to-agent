@@ -64,6 +64,26 @@ IMAGE_SUPPORT = {}
 MAX_ARG_BYTES = 100_000
 
 
+# What to run when the prompt cannot go on the command line (too large) or the
+# agent takes it another way. Defaults to just the program name.
+_BARE = {
+    "openclaw": ["omarchy-launch-openclaw", "--tui"],
+    "cursor-agent": ["cursor-agent"],
+    "kiro-cli": ["kiro-cli", "chat"],
+    "ori": ["ori", "code"],
+}
+
+
+def binary_of(template):
+    """The program a template runs, looking past a leading `env [-u VAR]`."""
+    i = 0
+    if template and template[0] == "env":
+        i = 1
+        while i + 1 < len(template) and template[i] == "-u":
+            i += 2
+    return template[i] if i < len(template) and isinstance(template[i], str) else ""
+
+
 def known_agents():
     return sorted(_ADAPTERS)
 
@@ -117,7 +137,8 @@ def build_launch(agent, prompt):
         plan["stdin"] = prompt
     else:
         plan["how"] = "clipboard"
-        plan["argv"] = _expand(ad["template"] if ad["how"] == "clipboard" else [ad["template"][0]], prompt)
+        plan["argv"] = _expand(ad["template"], prompt) if ad["how"] == "clipboard" else list(
+            _BARE.get(ad["agent"], [binary_of(ad["template"])]))
         plan["clipboard"] = prompt
         plan["note"] = "paste"
     if not ad["known"]:
@@ -127,7 +148,7 @@ def build_launch(agent, prompt):
 
 def installed(agent):
     ad = adapter_for(agent)
-    return bool(ad["template"]) and shutil.which(ad["template"][0]) is not None
+    return bool(ad["template"]) and shutil.which(binary_of(ad["template"])) is not None
 
 
 def default_agent(config_home=None):

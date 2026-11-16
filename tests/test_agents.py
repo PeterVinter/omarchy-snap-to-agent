@@ -78,6 +78,13 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(plan["how"], "clipboard")
         self.assertEqual(plan["argv"], ["claude"])
 
+    def test_huge_prompt_never_leaves_a_bare_env_command(self):
+        big = "x" * (agents.MAX_ARG_BYTES + 10)
+        self.assertEqual(agents.build_launch("hermes", big)["argv"], ["hermes"])
+        self.assertEqual(agents.build_launch("openclaw", big)["argv"], ["omarchy-launch-openclaw", "--tui"])
+        self.assertEqual(agents.build_launch("kiro-cli", big)["argv"], ["kiro-cli", "chat"])
+        self.assertEqual(agents.binary_of(["env", "-u", "X", "hermes", "chat"]), "hermes")
+
     def test_images_are_passed_as_path_until_tested(self):
         for name in agents.known_agents():
             self.assertEqual(agents.build_launch(name, "x")["image_mode"], "path", name)

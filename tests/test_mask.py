@@ -62,6 +62,14 @@ class MaskTests(unittest.TestCase):
         self.assertEqual(mask.mask(None)["text"], "")
         self.assertFalse(mask.has_secrets("password reset page"))
 
+    def test_allow_leaves_one_secret_unmasked(self):
+        first = self.result["findings"][0]
+        out = mask.mask(SAMPLE, allow=[first["id"]])
+        self.assertIn(first["original"], out["text"])
+        self.assertFalse(out["findings"][0]["masked"])
+        self.assertTrue(all(f["masked"] for f in out["findings"][1:]))
+        self.assertEqual([f["id"] for f in out["findings"]], [f["id"] for f in self.result["findings"]])
+
     def test_masking_twice_changes_nothing(self):
         again = mask.mask(self.text)
         self.assertEqual(again["text"], self.text)

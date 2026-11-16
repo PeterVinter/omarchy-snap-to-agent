@@ -31,8 +31,14 @@ PLACEHOLDER = "[MASKED:%s:%d]"
 _PLACEHOLDER_RE = re.compile(r"\[MASKED:[a-z-]+:\d+\]")
 
 
-def mask(text):
-    """Returns {"text": masked text, "findings": [{id, kind, original, placeholder}]}."""
+def mask(text, allow=(), start=1):
+    """Returns {"text": masked text, "findings": [{id, kind, original, placeholder, masked}]}.
+
+    Ids follow the order of the secrets in the text, counted from `start`, so the same input always gives
+    the same ids. Ids in `allow` are left unmasked (the user's undo); they stay in
+    the findings list with masked=False.
+    """
+    allow = set(allow or ())
     text = str(text or "")
     spans = []  # (start, end, kind)
     for kind, rx, group in _RULES:
@@ -55,12 +61,14 @@ def mask(text):
     out = []
     findings = []
     pos = 0
-    for i, (start, end, kind) in enumerate(kept, 1):
-        out.append(text[pos:start])
+    for i, (a, b, kind) in enumerate(kept, start):
+        out.append(text[pos:a])
         placeholder = PLACEHOLDER % (kind, i)
-        out.append(placeholder)
-        findings.append({"id": i, "kind": kind, "original": text[start:end], "placeholder": placeholder})
-        pos = end
+        masked = i not in allow
+        out.append(placeholder if masked else text[a:b])
+        findings.append({"id": i, "kind": kind, "original": text[a:b], "placeholder": placeholder,
+                         "masked": masked})
+        pos = b
     out.append(text[pos:])
     return {"text": "".join(out), "findings": findings}
 
