@@ -1,0 +1,62 @@
+"""Settings: built-in defaults merged with ~/.config/snap-to-agent/config.json.
+
+A missing or broken file means the defaults, never a crash. Unknown keys are
+ignored and wrongly typed values fall back to the default.
+"""
+import copy
+import json
+import os
+
+DEFAULTS = {
+    "retention_days": 7,
+    "ocr": True,
+    "hook": False,
+    "image": {"max_edge": 1920, "max_bytes": 2_000_000},
+    "questions": {},  # mode -> text, overrides compose.DEFAULT_QUESTIONS
+    "blocklist": {
+        # Case-insensitive substrings of the window class or title. Best effort:
+        # a site name is only seen when it is in the window title.
+        "classes": ["keepassxc", "1password", "bitwarden", "enpass", "proton-pass", "seahorse",
+                    "gnome-keyring", "org.gnome.seahorse"],
+        "titles": ["bankid", "internetbank", "online banking", "netbank", "swedbank", "handelsbanken",
+                   "nordea", "paypal", "revolut", "hsbc", "1password", "bitwarden", "keepass",
+                   "incognito", "private browsing", "inprivate", "(private)", "private window"],
+    },
+}
+
+
+def config_path():
+    home = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(home, "snap-to-agent", "config.json")
+
+
+def _merge(default, given):
+    """Takes `given` where it has the same type as the default; recurses into dicts."""
+    out = copy.deepcopy(default)
+    if not isinstance(given, dict):
+        return out
+    for key, value in default.items():
+        if key not in given:
+            continue
+        got = given[key]
+        if isinstance(value, dict) and isinstance(got, dict):
+            out[key] = _merge(value, got) if value else {k: str(v) for k, v in got.items() if isinstance(v, str)}
+        elif isinstance(value, bool):
+            if isinstance(got, bool):
+                out[key] = got
+        elif isinstance(value, int):
+            if isinstance(got, int) and not isinstance(got, bool) and got >= 0:
+                out[key] = got
+        elif isinstance(value, list):
+            if isinstance(got, list) and all(isinstance(x, str) for x in got):
+                out[key] = [x.strip().lower() for x in got if x.strip()][:200]
+    return out
+
+
+def load(path=None):
+    try:
+        with open(path or config_path(), encoding="utf-8") as f:
+            given = json.load(f)
+    except (OSError, ValueError):
+        given = {}
+    return _merge(DEFAULTS, given)
