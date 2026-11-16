@@ -55,7 +55,7 @@ omarchy plugin add https://github.com/PeterVinter/omarchy-snap-to-agent.git --ye
 omarchy plugin enable io.github.petervinter.snap-to-agent --section right
 ```
 
-Requires Omarchy 4.x, Python 3, `grim`, `slurp`, `wl-clipboard` and ImageMagick (`magick`), which Omarchy ships. `tesseract` is optional (OCR), `tmux` is optional (terminal output). No sudo.
+Requires Omarchy 4.x, Python 3, `grim`, `omasnap` (the region picker; `slurp` is used instead if `omasnap` is missing), `wl-clipboard` and ImageMagick (`magick`), which Omarchy ships. `tesseract` is optional (OCR), `tmux` is optional (terminal output). No sudo.
 
 ## Remove
 
@@ -70,7 +70,7 @@ The plugin writes nothing else: captures and `last.json` in `~/.cache/snap-to-ag
 
 | Mode | Command | What the agent gets |
 |---|---|---|
-| Region | `capture region` | A screenshot of the area you drag, plus the window under it |
+| Region | `capture region` | A screenshot of the area you drag (picked with Omarchy's own `omasnap` overlay) |
 | Window | `capture window` | A screenshot of the focused window |
 | Last terminal error | `capture error` | The failed command, its exit code, directory and output (see below) |
 | Notification | `capture notification` | A notification you pick from the latest eight |
@@ -103,7 +103,7 @@ Every image capture is read with `tesseract`. If the text in the picture looks l
 
 ### Blocklist and configuration
 
-The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region, and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title.
+The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region, and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title. `omasnap` does not tell the plugin which area you picked, so a region capture is refused while any blocked window is visible on screen; with `slurp` only windows under the region count. Set `region_tool` to `auto` (default), `omasnap` or `slurp` in the settings file.
 
 Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json](config.example.json)): `ocr`, `image` limits, per-mode default `questions`, and the `blocklist` lists. A missing or broken file means the defaults. The settings can also be changed in the panel.
 
