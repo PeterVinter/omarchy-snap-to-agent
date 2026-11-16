@@ -39,10 +39,10 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(c["omarchy_version"], "4.5.0-3")
         self.assertIn("something failed", c["logs"])
 
-    def test_other_apps_start_in_home(self):
+    def test_other_apps_start_in_the_default_directory(self):
         c = context.gather(APP, run=fake(), home="/home/x")
         self.assertEqual(c["cwd"], "/home/x")
-        self.assertEqual(c["cwd_from"], "home")
+        self.assertEqual(c["cwd_from"], "default")
         self.assertIsNone(c["git"])
         self.assertFalse(c["terminal"])
 
@@ -74,6 +74,17 @@ class ContextTests(unittest.TestCase):
         big = "x" * 50000
         c = context.gather(TERM, run=fake({"journalctl": (0, big, "")}), home="/home/x")
         self.assertLessEqual(len(c["logs"]), context.MAX_LOG_BYTES)
+
+    def test_launch_dir_prefers_work_over_home(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as home:
+            self.assertEqual(context.launch_dir("", home), home)
+            self.assertEqual(context.launch_dir(home, home), home)
+            os.mkdir(os.path.join(home, "Work"))
+            self.assertEqual(context.launch_dir("", home), os.path.join(home, "Work"))
+            self.assertEqual(context.launch_dir(home, home), os.path.join(home, "Work"))
+            self.assertEqual(context.launch_dir("/no/such/dir", home), os.path.join(home, "Work"))
+            self.assertEqual(context.launch_dir("/tmp", home), "/tmp")
 
     def test_tilde(self):
         self.assertEqual(context.tilde("/home/x/Work/a", "/home/x"), "~/Work/a")

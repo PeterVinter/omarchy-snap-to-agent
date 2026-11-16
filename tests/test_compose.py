@@ -70,9 +70,19 @@ class ComposeTests(unittest.TestCase):
         self.assertEqual(t["cwd"], "/tmp")
         self.assertEqual(t["display"], "Claude Code")
 
-    def test_missing_directory_falls_back_to_home(self):
-        t = compose.compose("q", dict(CTX, cwd="/no/such/dir"), SHOT, "region", agent="claude")["target"]
-        self.assertEqual(t["cwd"], os.path.expanduser("~"))
+    def test_missing_directory_falls_back_to_work_then_home(self):
+        with tempfile.TemporaryDirectory() as home:
+            old = os.environ.get("HOME")
+            os.environ["HOME"] = home
+            try:
+                t = compose.compose("q", dict(CTX, cwd="/no/such/dir"), SHOT, "region", agent="claude")["target"]
+                self.assertEqual(t["cwd"], home)
+                os.mkdir(os.path.join(home, "Work"))
+                t = compose.compose("q", dict(CTX, cwd="/no/such/dir"), SHOT, "region", agent="claude")["target"]
+                self.assertEqual(t["cwd"], os.path.join(home, "Work"))
+                self.assertEqual(t["cwd_display"], "~/Work")
+            finally:
+                os.environ["HOME"] = old
 
     def test_no_default_agent_is_reported(self):
         with tempfile.TemporaryDirectory() as home:

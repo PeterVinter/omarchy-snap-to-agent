@@ -108,13 +108,26 @@ def gather(win, run=_runner.run, home=None):
         "workspace": str(workspace.get("name", workspace.get("id", ""))),
         "monitor": monitor_name(win.get("monitor"), run) if win else "",
         "terminal": terminal,
-        "cwd": cwd or home,
-        "cwd_from": "terminal" if cwd else "home",
+        "cwd": launch_dir(cwd, home),
+        "cwd_from": "terminal" if cwd and launch_dir(cwd, home) == cwd else "default",
         "git": git_info(cwd, run),
         "logs": recent_logs(pid, 50, run),
         "omarchy_version": omarchy_version(run),
         "time": time.strftime("%Y-%m-%d %H:%M:%S %z"),
     }
+
+
+def launch_dir(cwd, home=None):
+    """Where the agent starts: the resolved directory, else ~/Work if it exists, else ~.
+
+    Same rule as omarchy-agent: agents refuse to remember folder trust for $HOME and
+    would ask on every start, so a start in $HOME moves to ~/Work when that exists.
+    """
+    home = home or os.path.expanduser("~")
+    if cwd and os.path.isdir(cwd) and os.path.realpath(cwd) != os.path.realpath(home):
+        return cwd
+    work = os.path.join(home, "Work")
+    return work if os.path.isdir(work) else home
 
 
 def tilde(path, home=None):

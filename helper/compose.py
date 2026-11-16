@@ -84,7 +84,7 @@ def target(agent, cwd):
     if problem or not name:
         return {"ok": False, "problem": problem or "empty", "notes": ["no_default_agent"]}
     ad = agents.adapter_for(name)
-    cwd = cwd if cwd and os.path.isdir(cwd) else os.path.expanduser("~")
+    cwd = ctxmod.launch_dir(cwd)
     if not ad["known"]:
         notes.append("generic_agent")
     elif ad["how"] != "arg":

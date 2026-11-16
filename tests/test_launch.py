@@ -106,12 +106,17 @@ class LaunchTests(unittest.TestCase):
             launch.launch(agents.build_launch("", "p"), "/tmp", run=Fake(), spawn=Spawn(), home=self.home)
         self.assertEqual(cm.exception.code, "no-agent")
 
-    def test_missing_directory_falls_back_to_home(self):
+    def test_missing_directory_falls_back_to_work_then_home(self):
         spawn = Spawn()
         with with_binaries("claude"):
             launch.launch(agents.build_launch("claude", "p"), "/no/such", run=Fake({"env": (1, "", "")}), spawn=spawn,
                           home=self.home, environ={})
         self.assertEqual(spawn.calls[0][1]["cwd"], self.home)
+        os.mkdir(os.path.join(self.home, "Work"))
+        with with_binaries("claude"):
+            launch.launch(agents.build_launch("claude", "p"), self.home, run=Fake({"env": (1, "", "")}), spawn=spawn,
+                          home=self.home, environ={})
+        self.assertEqual(spawn.calls[1][1]["cwd"], os.path.join(self.home, "Work"))
 
     def test_dry_run_changes_nothing(self):
         run, spawn = Fake({"env": (1, "", "")}), Spawn()

@@ -9,6 +9,7 @@ import shutil
 import subprocess
 
 import agents
+import context as ctxmod
 import runner as _runner
 
 APP_ID = "org.omarchy.agent"
@@ -109,7 +110,7 @@ def launch(plan, cwd, run=_runner.run, spawn=subprocess.Popen, dry_run=False, ho
         raise LaunchError("no-agent", "no default agent")
     if shutil.which(agents.binary_of(plan["argv"])) is None and not user_install(plan["agent"], run, home):
         raise LaunchError("not-installed", "%s is not installed" % plan["display"])
-    cwd = cwd if cwd and os.path.isdir(cwd) else home
+    cwd = ctxmod.launch_dir(cwd, home)
     command = agent_command(plan, run, home, environ)
     full = terminal_command(command)
     report = {"ok": True, "display": plan["display"], "cwd": cwd, "command": full,
