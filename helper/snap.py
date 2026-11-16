@@ -290,7 +290,9 @@ def cmd_history_delete(args):
 
 def cmd_settings_get(_args):
     cfg = config.load()
-    return {"ok": True, "config": cfg, "hook": hook.status(), "defaults": config.DEFAULTS,
+    status = hook.status()
+    cfg["hook"] = any(status.values())  # the real state of the shell files, not a stored flag
+    return {"ok": True, "config": cfg, "hook": status, "defaults": config.DEFAULTS,
             "path": config.config_path()}
 
 

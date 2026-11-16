@@ -1610,7 +1610,7 @@ Panel {
             id: contextFrame
             visible: root.contextOpen
             width: parent.width
-            height: visible ? Style.space(180) : 0
+            height: visible ? Style.space(260) : 0
             radius: Style.cornerRadius
             color: Style.normalFillFor(root.fg, root.accent)
             border.width: Math.max(1, Style.normalBorderWidth)
@@ -1625,7 +1625,7 @@ Panel {
               contentHeight: contextBox.implicitHeight
               clip: true
               boundsBehavior: Flickable.StopAtBounds
-              ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+              ScrollBar.vertical: ScrollBar { policy: contextFlick.contentHeight > contextFlick.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
 
               TextEdit {
                 id: contextBox
