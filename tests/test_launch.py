@@ -41,7 +41,7 @@ class LaunchTests(unittest.TestCase):
             r = launch.launch(plan, "/tmp", run=run, spawn=spawn, home=self.home, environ={})
         argv, kw = spawn.calls[0]
         self.assertEqual(argv[:2], ["omarchy-launch-tui", "--app-id=org.omarchy.agent"])
-        self.assertEqual(argv[-3:], ["claude", "--", "help me"])
+        self.assertEqual(argv[-5:], ["claude", "--permission-mode", "manual", "--", "help me"])
         self.assertEqual(kw["cwd"], "/tmp")
         self.assertTrue(kw["start_new_session"])
         for bad in agents.FORBIDDEN_FLAGS:

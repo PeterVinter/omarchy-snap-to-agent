@@ -13,7 +13,7 @@ Capture a region, a window, your last terminal error, a notification or the clip
 ## Why you will want it
 
 - **It uses the agent you already chose.** It reads Omarchy's default agent every time you send, so changing it in Setup takes effect at once. Claude Code, Codex, Grok, OpenCode and all the others Omarchy lists have an adapter; anything new falls back gracefully.
-- **It asks before it acts.** The agent starts in its normal ask-first mode. Omarchy's own launcher adds auto-approve flags to most agents; this plugin never does.
+- **It asks before it acts.** The plugin never adds an auto-approve flag, and it asks Claude Code explicitly for its manual (ask-first) mode. Omarchy's own launcher adds auto-approve flags to most agents; this plugin does not.
 - **You see everything before it leaves.** The preview shows who gets it and in which folder. Likely secrets (API keys, tokens, passwords, private keys) are masked first, and you can undo each mask with one click. If a screenshot itself seems to show secrets, you are warned and can send the masked text only.
 - **Some windows are never captured.** Password managers, banking and private browser windows are on a blocklist you can edit.
 - **It looks like Omarchy.** Colours, fonts, corners and spacing come from your theme, and switching theme updates the panel live.
@@ -46,7 +46,10 @@ Context attached automatically: app class and window title, workspace and monito
 
 ## Agent safety
 
-Agents are always started in their normal, **ask-before-acting** mode. Omarchy's own `omarchy-agent` adds auto-approve flags to most agents; this plugin deliberately does not. A test fails if any adapter ever emits one.
+Omarchy's own `omarchy-agent` adds auto-approve flags to most agents. This plugin never does, and a test fails if any adapter ever emits one.
+
+- **Claude Code** is started with `--permission-mode manual`. Without it, a fresh Claude Code 2.1.325 started in "auto mode" here, found with a real send, so the plugin asks for the mode that asks first.
+- **Other agents** are started without any permission flag, so they use their own defaults and your own settings for them. The plugin cannot know every agent's default; if one of yours is set to run without asking, that setting still applies. Check it in the agent itself.
 
 ## Install
 

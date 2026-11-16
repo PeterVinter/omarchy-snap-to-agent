@@ -38,9 +38,19 @@ class AdapterTests(unittest.TestCase):
     def test_no_auto_approve_flags_anywhere(self):
         for name in agents.known_agents():
             plan = agents.build_launch(name, "hello")
-            for arg in plan["argv"]:
+            argv = plan["argv"]
+            for i, arg in enumerate(argv):
                 for bad in agents.FORBIDDEN_FLAGS:
                     self.assertFalse(arg == bad or arg.startswith(bad + "="), "%s uses %s" % (name, bad))
+                if arg in agents.SAFE_ONLY_WITH:
+                    self.assertEqual(argv[i + 1], agents.SAFE_ONLY_WITH[arg], "%s: unsafe value for %s" % (name, arg))
+                if arg.startswith("--permission-mode="):
+                    self.assertEqual(arg.split("=", 1)[1], "manual")
+
+    def test_claude_is_asked_for_manual_mode_explicitly(self):
+        argv = agents.build_launch("claude", "hello")["argv"]
+        self.assertEqual(argv[:3], ["claude", "--permission-mode", "manual"])
+        self.assertEqual(argv[-2:], ["--", "hello"])
 
     def test_prompt_starting_with_dash_stays_literal(self):
         for name in ["claude", "codex", "opencode", "kilo", "qwen", "hermes", "cursor-agent"]:

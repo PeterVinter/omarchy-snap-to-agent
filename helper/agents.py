@@ -21,7 +21,9 @@ PROMPT = object()
 #   how "clipboard" the agent has no safe interactive prompt option: start it
 #                   plain and put the prompt on the clipboard
 _ADAPTERS = {
-    "claude":       ("Claude Code",     "arg", ["claude", "--", PROMPT]),
+    # Claude Code's own default can be "auto" (it was on a fresh install of 2.1.325), so ask for
+    # "manual", the mode that asks before it acts. This is a safe flag, not an auto-approve one.
+    "claude":       ("Claude Code",     "arg", ["claude", "--permission-mode", "manual", "--", PROMPT]),
     "codex":        ("Codex",           "arg", ["codex", "--", PROMPT]),
     "grok":         ("Grok",            "arg", ["grok", "--", PROMPT]),
     "opencode":     ("OpenCode",        "arg", ["opencode", "--prompt", PROMPT]),
@@ -52,8 +54,10 @@ _ADAPTERS = {
 FORBIDDEN_FLAGS = (
     "--yolo", "--auto", "--auto-approve", "--approve-for-me", "--allow-all",
     "--dangerously-skip-permissions", "--dangerously-allow-all", "--trust-all-tools",
-    "--permission-mode", "--approval-mode", "--trust",
+    "--approval-mode", "--trust",
 )
+# Flags that are safe only with a particular value: (flag, the one allowed value).
+SAFE_ONLY_WITH = {"--permission-mode": "manual"}
 
 # Where an agent keeps its own account home (see omarchy-agent-account-home).
 _ACCOUNT_ENV = {"claude": "CLAUDE_CONFIG_DIR", "codex": "CODEX_HOME", "grok": "GROK_HOME"}
