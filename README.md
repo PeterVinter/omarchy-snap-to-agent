@@ -4,7 +4,7 @@
 
 **Send what is on your screen to your default AI agent, with the context it needs to help right away.**
 
-Select a region or a window, check the preview, press Enter. Your agent opens in the right folder with the screenshot, the app and window title and, when you capture a terminal, its folder and git branch already attached. No copying, no pasting, no explaining.
+Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, press Enter. Your agent opens in the right folder with the screenshot or text, the app and window title and, for a terminal, its folder and git branch already attached. No copying, no pasting, no explaining.
 
 <img src="preview.png" alt="The Snap to Agent panel in a dark and a light Omarchy theme: thumbnail, target agent and folder, question, masked secrets and context" width="900">
 
@@ -14,7 +14,8 @@ Select a region or a window, check the preview, press Enter. Your agent opens in
 
 - **It uses the agent you already chose.** It reads Omarchy's default agent every time you send, so changing it in Setup takes effect at once. Claude Code, Codex, Grok, OpenCode and all the others Omarchy lists have an adapter; anything new falls back gracefully.
 - **It asks before it acts.** The agent starts in its normal ask-first mode. Omarchy's own launcher adds auto-approve flags to most agents; this plugin never does.
-- **You see everything before it leaves.** The preview shows who gets it and in which folder. Likely secrets (API keys, tokens, passwords, private keys) are masked first, and you can undo each mask with one click.
+- **You see everything before it leaves.** The preview shows who gets it and in which folder. Likely secrets (API keys, tokens, passwords, private keys) are masked first, and you can undo each mask with one click. If a screenshot itself seems to show secrets, you are warned and can send the masked text only.
+- **Some windows are never captured.** Password managers, banking and private browser windows are on a blocklist you can edit.
 - **It looks like Omarchy.** Colours, fonts, corners and spacing come from your theme, and switching theme updates the panel live.
 
 ## In your theme
@@ -32,7 +33,7 @@ omarchy plugin enable io.github.petervinter.snap-to-agent --section right
 
 Then bind a key (see [Suggested keybindings](#suggested-keybindings)) and it is one keystroke from anywhere. Requires Omarchy 4.x; everything else it needs ships with Omarchy. No sudo.
 
-> **Status: v0.1.** Region and window capture. Last terminal error, notifications, clipboard, OCR, history and settings are planned, see [ROADMAP.md](ROADMAP.md).
+> **Status: v0.2.** Five capture modes, OCR, a blocklist and the optional shell hook. History, a settings view and more languages are planned for v0.3, see [ROADMAP.md](ROADMAP.md).
 
 ## What it does
 
@@ -54,7 +55,7 @@ omarchy plugin add https://github.com/PeterVinter/omarchy-snap-to-agent.git --ye
 omarchy plugin enable io.github.petervinter.snap-to-agent --section right
 ```
 
-Requires Omarchy 4.x, Python 3, `grim`, `slurp`, `wl-clipboard` and ImageMagick (`magick`), which Omarchy ships. No sudo.
+Requires Omarchy 4.x, Python 3, `grim`, `slurp`, `wl-clipboard` and ImageMagick (`magick`), which Omarchy ships. `tesseract` is optional (OCR), `tmux` is optional (terminal output). No sudo.
 
 ## Remove
 
@@ -65,6 +66,47 @@ rm -rf ~/.cache/snap-to-agent
 
 The plugin writes nothing else: captures and `last.json` in `~/.cache/snap-to-agent/`. It makes no network calls of its own; only the agent you choose does.
 
+## Capture modes
+
+| Mode | Command | What the agent gets |
+|---|---|---|
+| Region | `capture region` | A screenshot of the area you drag, plus the window under it |
+| Window | `capture window` | A screenshot of the focused window |
+| Last terminal error | `capture error` | The failed command, its exit code, directory and output (see below) |
+| Notification | `capture notification` | A notification you pick from the latest eight |
+| Selection or clipboard | `capture clipboard` | The selected text, else the clipboard text, else a copied image |
+
+Every command is `omarchy-shell io.github.petervinter.snap-to-agent <command>`.
+
+### Last terminal error
+
+A failed command's output cannot be fetched afterwards without getting in the terminal's way, so the plugin uses two cheap parts:
+
+1. **A small shell hook** (optional, installed only if you ask) remembers the last *failed* command, its exit code and its directory. It costs one comparison per prompt, and under 0.3 ms when a command fails; measured in bash and zsh.
+2. **The output comes from the terminal.** In tmux it is read with `tmux capture-pane` (capped at 200 lines and 64 KB). Anywhere else (the plugin has no way to read the scrollback of foot or ghostty) it captures the terminal window and reads it with OCR.
+
+```bash
+snap-to-agent install-hook      # asks first; adds a marked block to ~/.bashrc (and ~/.zshrc if it exists)
+snap-to-agent uninstall-hook    # removes the block and the recorded file
+snap-to-agent hook-status
+```
+
+`snap-to-agent` is in the plugin folder (`~/.config/omarchy/plugins/io.github.petervinter.snap-to-agent/snap-to-agent`); link it into your `PATH` if you like. The hook records the last failure from any shell that loaded it. Ctrl+C is not counted as an error.
+
+![No failed command recorded](docs/screenshots/05-no-error-recorded.png)
+
+### Secrets in the screenshot
+
+Every image capture is read with `tesseract`. If the text in the picture looks like a key, token or password, the preview warns you and offers **Send text only (masked)**: the image stays on your machine and the agent gets the masked text. Without `tesseract` everything still works, you are just told that no text was read.
+
+![Warning about secrets in a screenshot](docs/screenshots/04-secrets-in-the-image.png)
+
+### Blocklist and configuration
+
+The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region, and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title.
+
+Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json](config.example.json)): `ocr`, `image` limits, per-mode default `questions`, and the `blocklist` lists. A missing or broken file means the defaults. The settings view comes in v0.3.
+
 ## Use
 
 Click the bar icon for the capture menu, or call the commands below from a keybinding.
@@ -73,6 +115,9 @@ Click the bar icon for the capture menu, or call the commands below from a keybi
 |---|---|
 | `omarchy-shell io.github.petervinter.snap-to-agent capture region` | Select a region with the mouse |
 | `omarchy-shell io.github.petervinter.snap-to-agent capture window` | Capture the active window |
+| `omarchy-shell io.github.petervinter.snap-to-agent capture error` | Send the last failed terminal command |
+| `omarchy-shell io.github.petervinter.snap-to-agent capture notification` | Pick a recent notification |
+| `omarchy-shell io.github.petervinter.snap-to-agent capture clipboard` | Send the selection or clipboard |
 | `omarchy-shell io.github.petervinter.snap-to-agent captureRegion "x,y WxH"` | A fixed area, for scripts |
 | `omarchy-shell io.github.petervinter.snap-to-agent resend` | Open the last capture again |
 | `omarchy-shell io.github.petervinter.snap-to-agent toggle` | Open or close the panel |
@@ -82,11 +127,14 @@ Keys in the panel: **Enter** sends, **Ctrl+Enter** copies, **Esc** cancels, **Ta
 
 ### Suggested keybindings
 
-Add to `~/.config/hypr/bindings.lua`. `SUPER + ALT + S` is taken by Omarchy ("Move window to scratchpad"), so region uses `A` for agent. W, E, N and C are free in a default Omarchy 4.5.
+Add to `~/.config/hypr/bindings.lua`. `SUPER + ALT + S` is taken by Omarchy ("Move window to scratchpad"), so region uses `A` for agent. W, E, N and C are free in a default Omarchy 4.5 and in `~/.config/hypr/bindings.lua` of the tested setup.
 
 ```lua
 o.bind("SUPER + ALT + A", "Snap to agent (region)", "omarchy-shell io.github.petervinter.snap-to-agent capture region")
 o.bind("SUPER + ALT + W", "Snap to agent (window)", "omarchy-shell io.github.petervinter.snap-to-agent capture window")
+o.bind("SUPER + ALT + E", "Snap to agent (last terminal error)", "omarchy-shell io.github.petervinter.snap-to-agent capture error")
+o.bind("SUPER + ALT + N", "Snap to agent (notification)", "omarchy-shell io.github.petervinter.snap-to-agent capture notification")
+o.bind("SUPER + ALT + C", "Snap to agent (selection or clipboard)", "omarchy-shell io.github.petervinter.snap-to-agent capture clipboard")
 ```
 
 ## Supported agents
@@ -136,7 +184,7 @@ In the terminal's directory when the capture comes from a terminal. Otherwise in
 ## Development
 
 ```bash
-python3 -I tests/test_mask.py     # also test_agents, test_capture, test_context, test_compose, test_launch
+for t in tests/test_*.py; do python3 -I "$t"; done
 /usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell Panel.qml
 ```
 

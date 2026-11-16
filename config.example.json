@@ -1,0 +1,24 @@
+{
+  "retention_days": 7,
+  "ocr": true,
+  "hook": false,
+  "image": {
+    "max_edge": 1920,
+    "max_bytes": 2000000
+  },
+  "questions": {
+    "error": "Explain this error and suggest a fix."
+  },
+  "blocklist": {
+    "classes": [
+      "keepassxc",
+      "1password",
+      "bitwarden"
+    ],
+    "titles": [
+      "incognito",
+      "private browsing",
+      "swedbank"
+    ]
+  }
+}

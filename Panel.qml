@@ -34,6 +34,9 @@ Panel {
   property bool contextEdited: false
   property bool contextOpen: false
   property var allow: []              // ids of masks the user undid
+  property bool sendImage: true       // false = text only (masked), for screenshots that show secrets
+  property var pickItems: []          // newest notifications, for the picker
+  property int pickIndex: 0
   property string errorCode: ""
   property string errorMessage: ""
   property real flashStamp: 0
@@ -45,9 +48,12 @@ Panel {
   readonly property var findings: hasPreview ? (preview.findings || []) : []
   readonly property var maskedFindings: findings.filter(function(f) { return f.masked })
   readonly property bool canSend: phase === "ready" && agentOk && target.installed !== false
+  readonly property bool hasImage: snap !== null && !!snap.capture
+  readonly property var imageSecrets: hasPreview ? (preview.image_secrets || []) : []
 
   readonly property string view: errorCode !== "" ? "error"
     : phase === "capturing" ? "capturing"
+    : phase === "picking" ? "pick"
     : phase === "sending" ? "sending"
     : phase === "sent" || phase === "copied" ? "done"
     : hasPreview ? (agentOk ? "ready" : "noagent")
@@ -75,7 +81,8 @@ Panel {
   // ------------------------------------------------------------ helper calls
 
   function stateForHelper() {
-    var s = { question: question, mode: snap.mode, capture: snap.capture, context: snap.context, allow: allow }
+    var s = { question: question, mode: snap.mode, capture: snap.capture, context: snap.context, allow: allow,
+              source: snap.source || null, ocr: snap.ocr || null, send_image: sendImage }
     if (contextEdited) s.context_text = contextText
     return s
   }
@@ -100,6 +107,45 @@ Panel {
     startTimer.restart()
   }
 
+  function startPick() {
+    if (busy) return
+    clearError()
+    pickItems = []
+    pickIndex = 0
+    phase = "picking"
+    pickProc.running = true
+    if (!opened) open()
+  }
+
+  function choose(index) {
+    if (phase !== "picking") return
+    phase = "capturing"
+    capProc.command = ["python3", "-I", root.helperPath, "capture", "notification", "--index", String(index)]
+    capProc.running = true
+  }
+
+  function setSendImage(value) {
+    if (sendImage === value) return
+    sendImage = value
+    runCompose(false)
+  }
+
+  Process {
+    id: pickProc
+    command: ["python3", "-I", root.helperPath, "notifications"]
+    stdout: StdioCollector { id: pickOut }
+    onExited: function(code) {
+      var r = root.parse(pickOut.text)
+      if (r && r.ok && r.items && r.items.length > 0) {
+        root.pickItems = r.items
+        root.pickIndex = 0
+        Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+      } else {
+        root.fail(r ? String(r.error || "no-notifications") : "helper", "")
+      }
+    }
+  }
+
   Timer {
     id: startTimer
     property string mode: "region"
@@ -114,9 +160,11 @@ Panel {
   }
 
   function applySnap(data) {
-    snap = { mode: data.mode, capture: data.capture, context: data.context }
+    snap = { mode: data.mode, capture: data.capture || null, context: data.context, source: data.source || null,
+             ocr: data.ocr || null }
     question = ""
     allow = []
+    sendImage = true
     contextEdited = false
     contextText = ""
     preview = null
@@ -280,7 +328,8 @@ Panel {
     function close(): void { root.close() }
     function toggle(): void { root.toggle() }
     function capture(mode: string): string {
-      if (mode !== "region" && mode !== "window") return "unsupported-mode: " + mode
+      if (mode === "notification") { root.startPick(); return "ok" }
+      if (["region", "window", "error", "clipboard"].indexOf(mode) < 0) return "unsupported-mode: " + mode
       root.startCapture(mode)
       return "ok"
     }
@@ -358,6 +407,14 @@ Panel {
 
       Keys.onEscapePressed: root.close()
       Keys.onPressed: function(event) {
+        if (root.view === "pick") {
+          if (event.key === Qt.Key_Down || event.key === Qt.Key_J) root.pickIndex = Math.min(root.pickItems.length - 1, root.pickIndex + 1)
+          else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) root.pickIndex = Math.max(0, root.pickIndex - 1)
+          else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.choose(root.pickIndex)
+          else return
+          event.accepted = true
+          return
+        }
         if (root.view !== "ready") return
         var ctrl = (event.modifiers & Qt.ControlModifier) !== 0
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -416,6 +473,7 @@ Panel {
               width: parent.width
               text: root.view === "error" ? strings.t("error." + root.errorCode, strings.t("error.generic"))
                 : root.view === "capturing" ? strings.t("capturing.title")
+                : root.view === "pick" ? strings.t("pick.title")
                 : root.view === "sending" ? strings.t("sending.title").arg(String(root.target.display || ""))
                 : root.view === "done" ? (root.phase === "copied" ? strings.t("copied.title")
                     : strings.t("sent.title").arg(String(root.target.display || "")))
@@ -478,6 +536,33 @@ Panel {
             onClicked: root.startCapture("window")
             Keys.onEscapePressed: root.close()
           }
+          Button {
+            width: parent.width
+            text: strings.t("mode.error")
+            bordered: true
+            focusable: true
+            foreground: root.fg
+            onClicked: root.startCapture("error")
+            Keys.onEscapePressed: root.close()
+          }
+          Button {
+            width: parent.width
+            text: strings.t("mode.notification")
+            bordered: true
+            focusable: true
+            foreground: root.fg
+            onClicked: root.startPick()
+            Keys.onEscapePressed: root.close()
+          }
+          Button {
+            width: parent.width
+            text: strings.t("mode.clipboard")
+            bordered: true
+            focusable: true
+            foreground: root.fg
+            onClicked: root.startCapture("clipboard")
+            Keys.onEscapePressed: root.close()
+          }
         }
 
         // Capturing
@@ -487,13 +572,90 @@ Panel {
           text: strings.t("capturing.body")
         }
 
+        // Notification picker
+        Column {
+          visible: root.view === "pick"
+          width: parent.width
+          spacing: Style.space(6)
+
+          StateNote {
+            visible: root.pickItems.length === 0
+            title: ""
+            text: strings.t("pick.loading")
+          }
+
+          Repeater {
+            model: root.pickItems
+            BorderSurface {
+              id: pickRow
+              required property var modelData
+              required property int index
+              width: column.width
+              implicitHeight: pickText.implicitHeight + Style.space(14)
+              height: implicitHeight
+              radius: Style.cornerRadius
+              readonly property bool current: index === root.pickIndex
+              color: current ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : "transparent"
+              borderSpec: Border.flat(current ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.2),
+                                      Math.max(1, Style.normalBorderWidth))
+
+              Column {
+                id: pickText
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: Style.space(10)
+                anchors.rightMargin: Style.space(10)
+                spacing: Style.space(2)
+
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: (pickRow.modelData.app ? pickRow.modelData.app + "  ·  " : "") + pickRow.modelData.summary
+                  color: pickRow.current ? root.accent : root.fg
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                  elide: Text.ElideRight
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  width: parent.width
+                  text: pickRow.modelData.time + (pickRow.modelData.body ? "  ·  " + pickRow.modelData.body.replace(/\s+/g, " ") : "")
+                  color: root.dim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  elide: Text.ElideRight
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: root.pickIndex = pickRow.index
+                onClicked: root.choose(pickRow.index)
+              }
+            }
+          }
+
+          Text {
+            visible: root.pickItems.length > 0
+            textFormat: Text.PlainText
+            width: parent.width
+            text: strings.t("pick.hint")
+            color: root.faint
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+          }
+        }
+
         // Error and no-agent states
         StateNote {
           visible: root.view === "error"
-          glyph: root.glyphWarn
-          glyphColor: root.warn
           title: ""
-          text: root.errorMessage !== "" ? root.errorMessage : strings.t("error.hint")
+          text: strings.t("error." + root.errorCode + ".body", root.errorMessage !== "" ? root.errorMessage : strings.t("error.hint"))
           hint: strings.t("error.hint")
           mono: true
         }
@@ -531,7 +693,7 @@ Panel {
         // Ready: thumbnail, notes, question, masks, context, buttons
         Item {
           id: thumbBox
-          visible: root.view === "ready" || root.view === "sending"
+          visible: (root.view === "ready" || root.view === "sending") && root.hasImage && root.sendImage
           readonly property real framePad: Style.space(10)
           readonly property real maxH: Style.space(190)
           readonly property bool known: thumb.implicitWidth > 0 && thumb.implicitHeight > 0
@@ -553,7 +715,7 @@ Panel {
               id: thumb
               anchors.fill: parent
               anchors.margins: thumbBox.framePad / 2
-              source: root.snap ? "file://" + root.snap.capture.path : ""
+              source: root.snap && root.snap.capture ? "file://" + root.snap.capture.path : ""
               fillMode: Image.PreserveAspectFit
               asynchronous: true
               sourceSize.width: 1100
@@ -600,6 +762,47 @@ Panel {
               font.pixelSize: Style.font.bodySmall
               wrapMode: Text.WordWrap
               lineHeight: 1.2
+            }
+          }
+        }
+
+        // The screenshot seems to show secrets
+        BorderSurface {
+          visible: root.view === "ready" && root.hasImage && root.imageSecrets.length > 0
+          width: parent.width
+          implicitHeight: imageWarn.implicitHeight + Style.space(20)
+          height: implicitHeight
+          radius: Style.cornerRadius
+          color: Qt.rgba(root.warn.r, root.warn.g, root.warn.b, 0.10)
+          borderSpec: Border.flat(Qt.rgba(root.warn.r, root.warn.g, root.warn.b, 0.6), Math.max(1, Style.normalBorderWidth))
+
+          Column {
+            id: imageWarn
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: Style.space(10)
+            spacing: Style.space(8)
+
+            Text {
+              textFormat: Text.PlainText
+              width: parent.width
+              text: root.sendImage ? strings.t("imagesecrets.warn").arg(root.imageSecrets.join(", "))
+                                   : strings.t("imagesecrets.textonly")
+              color: root.warn
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              font.bold: true
+              wrapMode: Text.WordWrap
+            }
+
+            Button {
+              text: root.sendImage ? strings.t("imagesecrets.sendText") : strings.t("imagesecrets.includeImage")
+              bordered: true
+              focusable: true
+              foreground: root.fg
+              onClicked: root.setSendImage(!root.sendImage)
+              Keys.onEscapePressed: root.close()
             }
           }
         }

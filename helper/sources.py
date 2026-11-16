@@ -6,7 +6,7 @@ import time
 import runner as _runner
 
 MAX_TEXT = 64_000
-NOTIFICATION_LIMIT = 12
+NOTIFICATION_LIMIT = 8
 
 
 def _state_home():
