@@ -8,6 +8,8 @@
   snap.py last                    the last capture
   snap.py compose|send|copy       JSON on one line on stdin (send also takes --dry-run)
   snap.py install-hook [--yes] | uninstall-hook | hook-status
+  snap.py history | history-open ID | history-delete ID | cleanup
+  snap.py settings-get | settings-set (JSON on stdin) | settings-reset
 """
 import json
 import os
@@ -21,6 +23,7 @@ import capture  # noqa: E402
 import compose  # noqa: E402
 import config  # noqa: E402
 import context  # noqa: E402
+import history  # noqa: E402
 import hook  # noqa: E402
 import launch  # noqa: E402
 import ocr  # noqa: E402
@@ -150,8 +153,17 @@ def _capture_notification(index, cfg):
                    cfg, None, win)
 
 
+def _cleanup(cfg=None):
+    """Old captures go after the retention period (7 days by default)."""
+    try:
+        history.cleanup((cfg or config.load())["retention_days"])
+    except OSError:
+        pass
+
+
 def cmd_capture(args):
     mode = args[0] if args else ""
+    _cleanup()
     geometry = args[args.index("--geometry") + 1] if "--geometry" in args and args.index("--geometry") + 1 < len(args) else None
     cfg = config.load()
     try:
@@ -217,7 +229,8 @@ def cmd_compose(_args):
 
 def cmd_send(args):
     """Starts the agent. Only ever called after the user confirmed the preview."""
-    r = _compose(read_state(), write_file=True)
+    data = read_state()
+    r = _compose(data, write_file=True)
     if not r["ok"]:
         return {"ok": False, "error": "no-default-agent", "problem": r["target"].get("problem", "")}
     t = r["target"]
@@ -226,9 +239,15 @@ def cmd_send(args):
         report = launch.launch(plan, t["cwd"], dry_run="--dry-run" in args)
     except launch.LaunchError as e:
         return {"ok": False, "error": e.code, "message": e.message}
-    return {"ok": True, "display": report["display"], "cwd": report["cwd"], "clipboard": report["clipboard"],
+    done = {"ok": True, "display": report["display"], "cwd": report["cwd"], "clipboard": report["clipboard"],
             "notified": report["notified"], "file": r["file"], "dry_run": report["dry_run"],
             "program": plan["agent"]}
+    if not report["dry_run"]:
+        try:
+            history.add(data, r["question"], done, str(data.get("mode", "region")))
+        except OSError:
+            pass  # a full disk must not turn a successful send into an error
+    return done
 
 
 def cmd_copy(_args):
@@ -251,6 +270,42 @@ def cmd_last(_args):
     if shot and not os.path.exists(str(shot.get("path", ""))):
         return {"ok": False, "error": "no-last", "message": "the last capture is gone"}
     return dict(state, ok=True)
+
+
+def cmd_history(_args):
+    _cleanup()
+    return {"ok": True, "items": history.listing()}
+
+
+def cmd_history_open(args):
+    state = history.open_state(args[0] if args else "")
+    if not state:
+        return {"ok": False, "error": "no-last", "message": "that entry is gone"}
+    return dict(state, ok=True)
+
+
+def cmd_history_delete(args):
+    return {"ok": history.delete(args[0] if args else "")}
+
+
+def cmd_settings_get(_args):
+    cfg = config.load()
+    return {"ok": True, "config": cfg, "hook": hook.status(), "defaults": config.DEFAULTS,
+            "path": config.config_path()}
+
+
+def cmd_settings_set(_args):
+    data = read_state()
+    cfg = config.save(data.get("config"))
+    return {"ok": True, "config": cfg}
+
+
+def cmd_settings_reset(_args):
+    return {"ok": True, "config": config.reset()}
+
+
+def cmd_cleanup(_args):
+    return {"ok": True, "removed": history.cleanup(config.load()["retention_days"])}
 
 
 def cmd_agent(_args):
@@ -288,7 +343,10 @@ def cmd_hook_status(_args):
 def main(argv):
     cmds = {"capture": cmd_capture, "notifications": cmd_notifications, "agent": cmd_agent, "last": cmd_last,
             "compose": cmd_compose, "send": cmd_send, "copy": cmd_copy,
-            "install-hook": cmd_install_hook, "uninstall-hook": cmd_uninstall_hook, "hook-status": cmd_hook_status}
+            "install-hook": cmd_install_hook, "uninstall-hook": cmd_uninstall_hook, "hook-status": cmd_hook_status,
+            "history": cmd_history, "history-open": cmd_history_open, "history-delete": cmd_history_delete,
+            "settings-get": cmd_settings_get, "settings-set": cmd_settings_set, "settings-reset": cmd_settings_reset,
+            "cleanup": cmd_cleanup}
     if not argv or argv[0] not in cmds:
         out = {"ok": False, "error": "usage", "message": " | ".join(sorted(cmds))}
     else:

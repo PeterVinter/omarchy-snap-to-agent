@@ -60,3 +60,43 @@ def load(path=None):
     except (OSError, ValueError):
         given = {}
     return _merge(DEFAULTS, given)
+
+
+# Bounds applied when settings are saved from the panel.
+_LIMITS = {"retention_days": (0, 3650)}
+_IMAGE_LIMITS = {"max_edge": (200, 8000), "max_bytes": (100_000, 20_000_000)}
+
+
+def _clamp(value, low, high):
+    return max(low, min(high, value))
+
+
+def save(updates, path=None):
+    """Merges known, valid settings into the file and returns the effective config.
+
+    Unknown keys and wrongly typed values are dropped, numbers are kept within sane bounds.
+    The file is written with mode 600 and replaced atomically.
+    """
+    current = load(path)
+    merged = _merge(current, updates if isinstance(updates, dict) else {})
+    for key, (low, high) in _LIMITS.items():
+        merged[key] = _clamp(merged[key], low, high)
+    for key, (low, high) in _IMAGE_LIMITS.items():
+        merged["image"][key] = _clamp(merged["image"][key], low, high)
+    target = path or config_path()
+    os.makedirs(os.path.dirname(target), mode=0o700, exist_ok=True)
+    tmp = target + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(merged, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, target)
+    return merged
+
+
+def reset(path=None):
+    try:
+        os.remove(path or config_path())
+    except OSError:
+        pass
+    return load(path)

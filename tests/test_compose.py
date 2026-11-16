@@ -95,6 +95,11 @@ class ComposeTests(unittest.TestCase):
         r = compose.compose("", CTX, SHOT, "error", agent="claude", questions={"error": "  "})
         self.assertEqual(r["question"], "Explain this error and suggest a fix.")
 
+    def test_default_source_tells_where_the_question_came_from(self):
+        self.assertEqual(compose.compose("mine", CTX, SHOT, "error", agent="claude")["default_source"], "user")
+        self.assertEqual(compose.compose("", CTX, SHOT, "error", agent="claude")["default_source"], "builtin")
+        self.assertEqual(compose.compose("", CTX, SHOT, "error", agent="claude", questions={"error": "Fix"})["default_source"], "config")
+
     def test_default_question_per_mode(self):
         r = compose.compose("  ", CTX, SHOT, "error", agent="claude")
         self.assertEqual(r["question"], "Explain this error and suggest a fix.")

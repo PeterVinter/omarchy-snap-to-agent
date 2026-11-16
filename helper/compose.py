@@ -120,7 +120,10 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
     has_image = bool(shot) and send_image
     tgt = target(agent, (ctx or {}).get("cwd"), has_image)
     image_mode = tgt.get("image_mode", "path")
-    question = (question or "").strip() or default_question(mode, questions)
+    given = (question or "").strip()
+    override = (questions or {}).get(mode)
+    default_source = "user" if given else ("config" if isinstance(override, str) and override.strip() else "builtin")
+    question = given or default_question(mode, questions)
     block = context_text if context_text is not None else context_block(
         ctx, shot, mode, image_mode, ocr_text, send_image, source)
     image_secrets = ocr_kinds(ocr_text) if shot else []
@@ -142,7 +145,7 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
     if shot and ocr_missing:
         notes.append("ocr_missing")
     result = {"ok": tgt.get("ok", False), "target": tgt, "question": qm["text"], "context": cm["text"],
-              "image_secrets": image_secrets, "has_image": bool(shot),
+              "image_secrets": image_secrets, "has_image": bool(shot), "default_source": default_source,
               "prompt": prompt, "full_prompt": prompt, "oversize": len(prompt) > INLINE_LIMIT, "file": "", "notes": notes,
               # Originals stay here; the panel only gets what it needs to show and undo.
               "findings": [{"id": f["id"], "kind": f["kind"], "masked": f["masked"], "placeholder": f["placeholder"]}
