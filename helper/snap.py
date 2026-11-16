@@ -57,8 +57,9 @@ def save_last(state):
 
 
 def read_state():
+    # One JSON object on one line: the shell writes it without closing stdin.
     try:
-        data = json.load(sys.stdin)
+        data = json.loads(sys.stdin.readline())
     except ValueError:
         raise capture.CaptureError("bad-input", "expected JSON on stdin")
     if not isinstance(data, dict):
@@ -107,6 +108,19 @@ def cmd_copy(_args):
     return {"ok": True}
 
 
+def cmd_last(_args):
+    """The last capture, for "send again". Local file only."""
+    try:
+        with open(os.path.join(capture.cache_dir(), "last.json"), encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        return {"ok": False, "error": "no-last", "message": "nothing captured yet"}
+    shot = state.get("capture") or {}
+    if not os.path.exists(str(shot.get("path", ""))):
+        return {"ok": False, "error": "no-last", "message": "the last capture is gone"}
+    return dict(state, ok=True)
+
+
 def cmd_agent(_args):
     name, problem = agents.default_agent()
     if problem:
@@ -117,9 +131,9 @@ def cmd_agent(_args):
 
 
 def main(argv):
-    cmds = {"capture": cmd_capture, "agent": cmd_agent, "compose": cmd_compose, "send": cmd_send, "copy": cmd_copy}
+    cmds = {"capture": cmd_capture, "agent": cmd_agent, "compose": cmd_compose, "send": cmd_send, "copy": cmd_copy, "last": cmd_last}
     if not argv or argv[0] not in cmds:
-        out = {"ok": False, "error": "usage", "message": "capture region|window | agent | compose | send | copy"}
+        out = {"ok": False, "error": "usage", "message": "capture region|window | agent | last | compose | send | copy"}
     else:
         try:
             out = cmds[argv[0]](argv[1:])
