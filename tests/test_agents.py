@@ -109,6 +109,43 @@ class AdapterTests(unittest.TestCase):
             self.assertTrue(plan["known"], "no adapter for %s" % name)
 
 
+class AutoModeTests(unittest.TestCase):
+    def test_default_never_uses_auto(self):
+        for name in agents.known_agents():
+            plan = agents.build_launch(name, "hi")
+            self.assertFalse(plan["auto"], name)
+            self.assertEqual(plan["argv"], agents.build_launch(name, "hi", auto=False)["argv"])
+
+    def test_auto_changes_the_command_only_for_agents_with_an_option(self):
+        for name in agents.known_agents():
+            safe = agents.build_launch(name, "hi")
+            auto = agents.build_launch(name, "hi", auto=True)
+            if agents.has_auto(name):
+                self.assertTrue(auto["auto"], name)
+                self.assertNotEqual(auto["argv"], safe["argv"], name)
+            else:
+                self.assertFalse(auto["auto"], name)
+                self.assertEqual(auto["argv"], safe["argv"], name)
+
+    def test_auto_commands_match_omarchys_launcher(self):
+        a = lambda n: agents.build_launch(n, "p", auto=True)["argv"]  # noqa: E731
+        self.assertEqual(a("claude"), ["claude", "--permission-mode", "auto", "--", "p"])
+        self.assertEqual(a("codex"), ["codex", "--approve-for-me", "--", "p"])
+        self.assertEqual(a("opencode"), ["opencode", "--auto", "--prompt", "p"])
+        self.assertEqual(a("kimi"), ["kimi", "--yolo"])
+
+    def test_agents_without_a_known_option_stay_safe(self):
+        for name in ("pi", "ori", "mcode", "openclaw", "freebuff", "dsh", "brand-new-agent"):
+            self.assertFalse(agents.has_auto(name), name)
+            self.assertFalse(agents.build_launch(name, "x", auto=True)["auto"], name)
+
+    def test_amp_and_clipboard_agents_keep_their_way_of_taking_a_prompt(self):
+        amp = agents.build_launch("amp", "p", auto=True)
+        self.assertEqual((amp["how"], amp["stdin"], amp["argv"][0]), ("stdin", "p", "amp"))
+        kimi = agents.build_launch("kimi", "p", auto=True)
+        self.assertEqual((kimi["how"], kimi["clipboard"]), ("clipboard", "p"))
+
+
 class DefaultAgentTests(unittest.TestCase):
     def write(self, home, content):
         d = os.path.join(home, "omarchy", "defaults")

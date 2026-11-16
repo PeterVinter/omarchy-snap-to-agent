@@ -46,10 +46,14 @@ Context attached automatically: app class and window title, workspace and monito
 
 ## Agent safety
 
-Omarchy's own `omarchy-agent` adds auto-approve flags to most agents. This plugin never does, and a test fails if any adapter ever emits one.
+**By default the agent asks before it acts.** Omarchy's own `omarchy-agent` adds auto-approve flags to most agents; this plugin does not, and a test fails if any adapter emits one in the default mode.
 
-- **Claude Code** is started with `--permission-mode manual`. Without it, a fresh Claude Code 2.1.325 started in "auto mode" here, found with a real send, so the plugin asks for the mode that asks first.
+- **Claude Code** is started with `--permission-mode manual`. Without it, a fresh Claude Code 2.1.325 started in "auto mode" here (found with a real send), so the plugin asks for the mode that asks first. The flag applies to that one session only; nothing is written to Claude's settings.
 - **Other agents** are started without any permission flag, so they use their own defaults and your own settings for them. The plugin cannot know every agent's default; if one of yours is set to run without asking, that setting still applies. Check it in the agent itself.
+
+### Auto mode (optional)
+
+If you want the agent to act without asking, turn on **Let the agent act without asking (auto mode)** in the settings (`agent_auto` in `config.json`, off by default). The agent is then started the way Omarchy's own launcher starts it, with the agent's auto-approve option where the plugin knows one (for example `--permission-mode auto` for Claude Code, `--approve-for-me` for Codex, `--auto` for OpenCode). Pi, Ori, MiniMax Code, OpenClaw and Freebuff have no such option in Omarchy's launcher, and DeepSeek Harness's is "full access", which is too broad for a checkbox, so those are started as usual. While auto mode is on, the preview says so in red every time.
 
 ## Install
 
@@ -120,7 +124,7 @@ Only the masked question is kept in the list. The captured state needed to open 
 
 ### Settings
 
-Everything in `config.json` can be changed in the panel (the Settings tab, or `omarchy-shell io.github.petervinter.snap-to-agent settings`): OCR on or off, how long captures are kept (7 days by default, `0` keeps them), image size limits, a default question per mode, the blocklist, and the terminal-error hook, which is only installed after you confirm. **Save** writes the file with mode 600, **Reset to defaults** deletes it.
+Everything in `config.json` can be changed in the panel (the Settings tab, or `omarchy-shell io.github.petervinter.snap-to-agent settings`): OCR on or off, whether agents may act without asking (off by default), how long captures are kept (7 days by default, `0` keeps them), image size limits, a default question per mode, the blocklist, and the terminal-error hook, which is only installed after you confirm. **Save** writes the file with mode 600, **Reset to defaults** deletes it.
 
 ![Settings](docs/screenshots/07-settings.png)
 

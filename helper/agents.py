@@ -50,6 +50,38 @@ _ADAPTERS = {
     "freebuff":     ("Freebuff",        "clipboard", ["freebuff"]),
 }
 
+# The same agents started the way Omarchy's own launcher (omarchy-agent) starts them, with the
+# agent's auto-approve option. Used ONLY when the user turns on "agent auto mode" in the settings;
+# the default is off. Left out on purpose: pi, ori, mcode, openclaw and freebuff (Omarchy adds no
+# such option for them) and dsh (its option is "danger-full-access", which is too broad to switch
+# on from a checkbox). A prompt too large for the command line still starts without the flag.
+AUTO = {
+    "claude":       ["claude", "--permission-mode", "auto", "--", PROMPT],
+    "codex":        ["codex", "--approve-for-me", "--", PROMPT],
+    "grok":         ["grok", "--permission-mode", "bypassPermissions", "--", PROMPT],
+    "opencode":     ["opencode", "--auto", "--prompt", PROMPT],
+    "kilo":         ["kilo", "--auto", ("--prompt=", PROMPT)],
+    "agy":          ["agy", "--dangerously-skip-permissions", "--prompt-interactive", PROMPT],
+    "copilot":      ["copilot", "--allow-all", "--interactive", PROMPT],
+    "qwen":         ["qwen", "--yolo", ("--prompt-interactive=", PROMPT)],
+    "cursor-agent": ["cursor-agent", "--yolo", "--trust", "agent", "--", PROMPT],
+    "muse":         ["muse", "--approval-mode", "never", "--", PROMPT],
+    "omp":          ["omp", "--auto-approve", "--", PROMPT],
+    "kiro-cli":     ["kiro-cli", "chat", "--trust-all-tools", "--", PROMPT],
+    "devin":        ["devin", "--permission-mode", "dangerous", "--respect-workspace-trust", "false", "--", PROMPT],
+    "commandcode":  ["commandcode", "--yolo", "--", PROMPT],
+    "hermes":       ["env", "-u", "HERMES_SESSION_SOURCE", "hermes", "chat", "--yolo", "--tui", ("--query=", PROMPT)],
+    "amp":          ["amp", "--dangerously-allow-all"],
+    "kimi":         ["kimi", "--yolo"],
+    "crush":        ["crush", "--yolo"],
+}
+
+
+def has_auto(agent):
+    """True when this agent has an auto-approve start option the plugin knows."""
+    return str(agent or "") in AUTO
+
+
 # Flags that switch an agent to "do not ask". Never emitted; the test checks it.
 FORBIDDEN_FLAGS = (
     "--yolo", "--auto", "--auto-approve", "--approve-for-me", "--allow-all",
@@ -119,8 +151,10 @@ def image_mode(agent):
     return IMAGE_SUPPORT.get(agent, "path")
 
 
-def build_launch(agent, prompt):
+def build_launch(agent, prompt, auto=False):
     """Builds the launch plan for an agent.
+
+    auto=True starts it with its auto-approve option (see AUTO); the default never does.
 
     Returns {display, known, how, argv, stdin, clipboard, image_mode, note}.
     argv is the agent command without any terminal wrapper. clipboard is the text
@@ -128,8 +162,12 @@ def build_launch(agent, prompt):
     """
     ad = adapter_for(agent)
     prompt = str(prompt or "")
+    use_auto = bool(auto) and has_auto(ad["agent"])
+    if use_auto:
+        ad = dict(ad, template=AUTO[ad["agent"]])
     plan = {"agent": ad["agent"], "display": ad["display"], "known": ad["known"], "how": ad["how"],
-            "argv": [], "stdin": None, "clipboard": None, "image_mode": image_mode(ad["agent"]), "note": ""}
+            "argv": [], "stdin": None, "clipboard": None, "image_mode": image_mode(ad["agent"]), "note": "",
+            "auto": use_auto}
     if not ad["template"]:
         plan["how"] = "none"
         plan["note"] = "no agent"

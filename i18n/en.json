@@ -127,5 +127,9 @@
   "error.bad-input": "The helper got unreadable input",
   "error.internal": "The helper hit an unexpected error",
   "error.no-agent": "No agent to start",
-  "error.missing-omasnap": "omasnap is not installed"
+  "error.missing-omasnap": "omasnap is not installed",
+  "note.auto_mode": "Auto mode is on: this agent may act without asking you first. Turn it off in the settings.",
+  "settings.agent": "Agent",
+  "settings.auto": "Let the agent act without asking (auto mode)",
+  "settings.auto.desc": "Off by default: agents ask before they act. On starts the agent the way Omarchy's own launcher does, with its auto-approve option where it has one. Use with care."
 }

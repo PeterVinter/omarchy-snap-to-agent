@@ -95,7 +95,7 @@ def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_te
     return "\n\n".join(parts)
 
 
-def target(agent, cwd, has_image=True):
+def target(agent, cwd, has_image=True, auto=False):
     """Who gets it and where, for the 'Sending to' line, plus note codes for the panel."""
     notes = []
     name, problem = (agent, "") if agent else agents.default_agent()
@@ -109,6 +109,8 @@ def target(agent, cwd, has_image=True):
         notes.append("clipboard_paste" if ad["how"] == "clipboard" else "stdin_prompt")
     if has_image and agents.image_mode(name) == "path":
         notes.append("image_path_only")
+    if auto and agents.has_auto(name):
+        notes.append("auto_mode")
     if not agents.installed(name):
         notes.append("agent_not_installed")
     return {"ok": True, "agent": name, "display": ad["display"], "known": ad["known"], "how": ad["how"],
@@ -117,10 +119,10 @@ def target(agent, cwd, has_image=True):
 
 
 def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_image=True,
-            context_text=None, write_file=False, source=None, ocr_missing=False, questions=None):
+            context_text=None, write_file=False, source=None, ocr_missing=False, questions=None, auto=False):
     """Returns the preview record. `context_text` replaces the generated block (the user edited it)."""
     has_image = bool(shot) and send_image
-    tgt = target(agent, (ctx or {}).get("cwd"), has_image)
+    tgt = target(agent, (ctx or {}).get("cwd"), has_image, auto)
     image_mode = tgt.get("image_mode", "path")
     given = (question or "").strip()
     override = (questions or {}).get(mode)

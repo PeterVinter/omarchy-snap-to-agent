@@ -45,6 +45,12 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.load(self.write(json.dumps({"region_tool": "rm -rf"})))["region_tool"], "auto")
         self.assertEqual(config.load(self.write(json.dumps({"region_tool": 3})))["region_tool"], "auto")
 
+    def test_agent_auto_is_off_unless_the_file_says_true(self):
+        self.assertFalse(config.load(self.write("{}"))["agent_auto"])
+        self.assertTrue(config.load(self.write(json.dumps({"agent_auto": True})))["agent_auto"])
+        self.assertFalse(config.load(self.write(json.dumps({"agent_auto": "yes"})))["agent_auto"])
+        self.assertFalse(config.load(self.write(json.dumps({"agent_auto": 1})))["agent_auto"])
+
     def test_questions_keep_only_strings(self):
         cfg = config.load(self.write(json.dumps({"questions": {"error": "Fix it", "window": 3}})))
         self.assertEqual(cfg["questions"], {"error": "Fix it"})

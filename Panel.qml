@@ -940,6 +940,16 @@ Panel {
               onClicked: root.setCfg(["ocr"], !root.cfg.ocr)
             }
 
+            Toggle {
+              width: parent.width
+              label: strings.t("settings.auto")
+              description: strings.t("settings.auto.desc")
+              checked: root.cfg ? root.cfg.agent_auto : false
+              foreground: root.fg
+              accent: root.warn
+              onClicked: root.setCfg(["agent_auto"], !root.cfg.agent_auto)
+            }
+
             NumberField {
               width: parent.width
               label: strings.t("settings.retention")
@@ -1397,7 +1407,7 @@ Panel {
               width: column.width
               text: strings.t("note." + modelData, "")
               visible: text !== ""
-              color: modelData === "agent_not_installed" ? root.warn : root.dim
+              color: (modelData === "agent_not_installed" || modelData === "auto_mode") ? root.warn : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               wrapMode: Text.WordWrap

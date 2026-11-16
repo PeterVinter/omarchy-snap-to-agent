@@ -11,6 +11,7 @@ DEFAULTS = {
     "retention_days": 7,
     "ocr": True,
     "hook": False,
+    "agent_auto": False,  # start agents with their auto-approve option; off unless the user turns it on
     "region_tool": "auto",  # auto | omasnap | slurp
     "image": {"max_edge": 1920, "max_bytes": 2_000_000},
     "questions": {},  # mode -> text, overrides compose.DEFAULT_QUESTIONS

@@ -127,5 +127,9 @@
   "error.bad-input": "Hjälpprogrammet fick data det inte kunde läsa",
   "error.internal": "Hjälpprogrammet stötte på ett oväntat fel",
   "error.no-agent": "Ingen agent att starta",
-  "error.missing-omasnap": "omasnap är inte installerat"
+  "error.missing-omasnap": "omasnap är inte installerat",
+  "note.auto_mode": "Autoläge är på: den här agenten kan agera utan att fråga dig först. Stäng av det i inställningarna.",
+  "settings.agent": "Agent",
+  "settings.auto": "Låt agenten agera utan att fråga (autoläge)",
+  "settings.auto.desc": "Av som standard: agenter frågar innan de agerar. På startar agenten som Omarchys egen startare gör, med dess auto-godkännande där det finns. Använd med försiktighet."
 }

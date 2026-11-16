@@ -21,5 +21,6 @@
       "swedbank"
     ]
   },
-  "region_tool": "auto"
+  "region_tool": "auto",
+  "agent_auto": false
 }

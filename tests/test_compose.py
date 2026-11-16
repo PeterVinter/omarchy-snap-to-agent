@@ -100,6 +100,11 @@ class ComposeTests(unittest.TestCase):
         self.assertEqual(compose.compose("", CTX, SHOT, "error", agent="claude")["default_source"], "builtin")
         self.assertEqual(compose.compose("", CTX, SHOT, "error", agent="claude", questions={"error": "Fix"})["default_source"], "config")
 
+    def test_auto_mode_is_flagged_only_when_on_and_only_where_it_applies(self):
+        self.assertNotIn("auto_mode", compose.compose("q", CTX, SHOT, "region", agent="claude")["notes"])
+        self.assertIn("auto_mode", compose.compose("q", CTX, SHOT, "region", agent="claude", auto=True)["notes"])
+        self.assertNotIn("auto_mode", compose.compose("q", CTX, SHOT, "region", agent="pi", auto=True)["notes"])
+
     def test_default_question_per_mode(self):
         r = compose.compose("  ", CTX, SHOT, "error", agent="claude")
         self.assertEqual(r["question"], "Explain this error and suggest a fix.")

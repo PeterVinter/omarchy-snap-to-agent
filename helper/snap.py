@@ -220,7 +220,7 @@ def _compose(data, write_file=False):
         send_image=data.get("send_image", True) is not False,
         context_text=data.get("context_text") if isinstance(data.get("context_text"), str) else None,
         write_file=write_file, source=source, ocr_missing=bool(ocr_state.get("missing")),
-        questions=cfg["questions"])
+        questions=cfg["questions"], auto=cfg["agent_auto"])
 
 
 def cmd_compose(_args):
@@ -236,14 +236,14 @@ def cmd_send(args):
     if not r["ok"]:
         return {"ok": False, "error": "no-default-agent", "problem": r["target"].get("problem", "")}
     t = r["target"]
-    plan = agents.build_launch(t["agent"], r["prompt"])
+    plan = agents.build_launch(t["agent"], r["prompt"], auto=config.load()["agent_auto"])
     try:
         report = launch.launch(plan, t["cwd"], dry_run="--dry-run" in args)
     except launch.LaunchError as e:
         return {"ok": False, "error": e.code, "message": e.message}
     done = {"ok": True, "display": report["display"], "cwd": report["cwd"], "clipboard": report["clipboard"],
             "notified": report["notified"], "file": r["file"], "dry_run": report["dry_run"],
-            "program": plan["agent"]}
+            "program": plan["agent"], "auto": plan["auto"]}
     if not report["dry_run"]:
         try:
             history.add(data, r["question"], done, str(data.get("mode", "region")))
