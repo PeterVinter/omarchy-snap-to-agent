@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.petervinter.snap-to-agent",
   "name": "Omarchy Snap to Agent",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "author": "Peter Vinter",
   "license": "MIT",
-  "description": "One keystroke sends what you are looking at, with context, to the default AI agent you chose in Omarchy. Always shows a preview first and masks likely secrets.",
+  "description": "Send what is on your screen to your default AI agent, with the context it needs to help right away. Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, and your agent opens in the right folder, ready to work. Works with every agent Omarchy supports, asks before it acts, and masks likely secrets first.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Omarchy Snap to Agent",
-    "description": "Send a screen region or window to your default agent, with context and a preview.",
+    "description": "Send a region, window, terminal error, notification or clipboard to your default AI agent, with a preview first.",
     "category": "Productivity",
     "allowMultiple": false,
     "defaultSection": "right"
