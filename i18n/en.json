@@ -69,7 +69,7 @@
   "imagesecrets.includeImage": "Include the image again",
   "note.image_has_secrets": "The image itself is not masked: it can show what the text masks.",
   "note.image_not_sent": "The screenshot is not sent. The agent gets the masked text.",
-  "note.ocr_missing": "tesseract is not installed, so no text was read from the image. Install it with: omarchy pkg add tesseract",
+  "note.ocr_missing": "tesseract is not installed, so no text was read from the image. Install the tesseract package to turn this on.",
   "error.blocked": "This window is on the blocklist",
   "error.blocked.body": "Nothing was captured. You can change the blocklist in the settings file.",
   "error.no-error-recorded": "No failed command recorded",
