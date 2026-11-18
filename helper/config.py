@@ -12,6 +12,9 @@ DEFAULTS = {
     "ocr": True,
     "hook": False,
     "agent_auto": False,  # start agents with their auto-approve option; off unless the user turns it on
+    # Agents that take the prompt as an argument leave it readable to other local accounts while the
+    # session runs. Off by default: the prompt goes to the clipboard and you paste it.
+    "prompt_as_argument": False,
     "region_tool": "auto",  # auto | omasnap | slurp
     "image": {"max_edge": 1920, "max_bytes": 2_000_000},
     "questions": {},  # mode -> text, overrides compose.DEFAULT_QUESTIONS

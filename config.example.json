@@ -22,5 +22,6 @@
     ]
   },
   "region_tool": "auto",
-  "agent_auto": false
+  "agent_auto": false,
+  "prompt_as_argument": false
 }

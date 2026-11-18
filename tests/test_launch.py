@@ -47,7 +47,7 @@ class LaunchTests(unittest.TestCase):
         self.home = tempfile.mkdtemp()
 
     def test_claude_runs_in_a_terminal_without_auto_flags(self):
-        plan = agents.build_launch("claude", "help me")
+        plan = agents.build_launch("claude", "help me", as_argument=True)
         run, spawn = Fake({"omarchy-agent-account-home": (0, "", ""), "env": (1, "", "")}), Spawn()
         with with_binaries("claude"):
             r = launch.launch(plan, "/tmp", run=run, spawn=spawn, home=self.home, environ={})
@@ -62,7 +62,7 @@ class LaunchTests(unittest.TestCase):
         self.assertFalse(r["clipboard"])
 
     def test_account_home_is_pinned_like_omarchy_does(self):
-        plan = agents.build_launch("claude", "q")
+        plan = agents.build_launch("claude", "q", as_argument=True)
         run = Fake({"omarchy-agent-account-home": (0, "/acct/work", ""), "env": (1, "", "")})
         cmd = launch.agent_command(plan, run, self.home, {})
         self.assertEqual(cmd[:5], ["env", "-u", "CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME=/acct/work",
@@ -70,7 +70,7 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(inner(cmd)[0], "claude")
 
     def test_users_own_provider_home_is_left_alone(self):
-        plan = agents.build_launch("codex", "q")
+        plan = agents.build_launch("codex", "q", as_argument=True)
         cmd = launch.agent_command(plan, Fake({"env": (1, "", "")}), self.home, {"CODEX_HOME": "/mine"})
         self.assertEqual(inner(cmd)[0], "codex")
         self.assertEqual(prefix(cmd), [])
@@ -85,6 +85,16 @@ class LaunchTests(unittest.TestCase):
         self.assertTrue(r["clipboard"] and r["notified"])
         self.assertEqual(spawn.calls[0][0][-1], "kimi")
         self.assertNotIn("the prompt", spawn.calls[0][0])
+
+    def test_default_claude_start_is_plain_with_the_prompt_on_the_clipboard(self):
+        plan = agents.build_launch("claude", "the prompt")
+        run, spawn = Fake({"env": (1, "", "")}), Spawn()
+        with with_binaries("claude"):
+            r = launch.launch(plan, "/tmp", run=run, spawn=spawn, home=self.home, environ={})
+        self.assertIn((["wl-copy"], "the prompt"), run.calls)
+        self.assertEqual(spawn.calls[0][0][-3:], ["claude", "--permission-mode", "manual"])
+        self.assertNotIn("the prompt", " ".join(spawn.calls[0][0]))
+        self.assertTrue(r["clipboard"])
 
     def test_failed_clipboard_does_not_start_the_agent(self):
         plan = agents.build_launch("kimi", "p")
@@ -158,7 +168,7 @@ class LaunchTests(unittest.TestCase):
 
     def test_the_prompt_argument_is_never_rewritten(self):
         prompt = "please run claude now"
-        plan = agents.build_launch("claude", prompt)
+        plan = agents.build_launch("claude", prompt, as_argument=True)
         bin_dir = os.path.join(self.home, ".local", "bin")
         os.makedirs(bin_dir)
         own = os.path.join(bin_dir, "claude")
@@ -169,6 +179,19 @@ class LaunchTests(unittest.TestCase):
         self.assertEqual(cmd[-1], agents.PROMPT_MARKER)
         self.assertNotIn(prompt, cmd)
         self.assertIn(own, cmd)
+
+
+class RunnerTests(unittest.TestCase):
+    def test_a_command_that_leaves_a_background_process_does_not_time_out(self):
+        import runner
+        with tempfile.TemporaryDirectory() as d:
+            fake = os.path.join(d, "wl-copy")
+            with open(fake, "w") as f:  # like wl-copy: serves in a background process that keeps the pipes
+                f.write("#!/bin/bash\ncat > /dev/null\n(sleep 8 &)\n")
+            os.chmod(fake, 0o755)
+            with mock.patch.dict(os.environ, {"PATH": d + os.pathsep + os.environ["PATH"]}):
+                code, _, _ = runner.run(["wl-copy"], timeout=3, input="text")
+        self.assertEqual(code, 0)
 
 
 class PrivatePromptTests(unittest.TestCase):
@@ -216,12 +239,12 @@ class PrivatePromptTests(unittest.TestCase):
         self.assertEqual(open(self.out + ".in").read(), long + "\n")
 
     def test_argument_agent_gets_the_exact_text(self):
-        self._run(agents.build_launch("kilo", self.NASTY))  # prompt joined to a flag: --prompt=<text>
+        self._run(agents.build_launch("kilo", self.NASTY, as_argument=True))  # prompt joined to a flag: --prompt=<text>
         args = open(self.out + ".args").read().split("\0")[:-1]
         self.assertEqual(args, ["--prompt=" + self.NASTY])
 
     def test_argument_agent_with_separate_argument(self):
-        self._run(agents.build_launch("codex", self.NASTY))
+        self._run(agents.build_launch("codex", self.NASTY, as_argument=True))
         args = open(self.out + ".args").read().split("\0")[:-1]
         self.assertEqual(args, ["--", self.NASTY])
 

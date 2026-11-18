@@ -220,7 +220,7 @@ def _compose(data, write_file=False):
         send_image=data.get("send_image", True) is not False,
         context_text=data.get("context_text") if isinstance(data.get("context_text"), str) else None,
         write_file=write_file, source=source, ocr_missing=bool(ocr_state.get("missing")),
-        questions=cfg["questions"], auto=cfg["agent_auto"])
+        questions=cfg["questions"], auto=cfg["agent_auto"], as_argument=cfg["prompt_as_argument"])
 
 
 def cmd_compose(_args):
@@ -236,7 +236,8 @@ def cmd_send(args):
     if not r["ok"]:
         return {"ok": False, "error": "no-default-agent", "problem": r["target"].get("problem", "")}
     t = r["target"]
-    plan = agents.build_launch(t["agent"], r["prompt"], auto=config.load()["agent_auto"])
+    cfg = config.load()
+    plan = agents.build_launch(t["agent"], r["prompt"], auto=cfg["agent_auto"], as_argument=cfg["prompt_as_argument"])
     try:
         report = launch.launch(plan, t["cwd"], dry_run="--dry-run" in args)
     except launch.LaunchError as e:

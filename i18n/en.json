@@ -131,5 +131,9 @@
   "note.auto_mode": "Auto mode is on: this agent may act without asking you first. Turn it off in the settings.",
   "settings.agent": "Agent",
   "settings.auto": "Let the agent act without asking (auto mode)",
-  "settings.auto.desc": "Off by default: agents ask before they act. On starts the agent the way Omarchy's own launcher does, with its auto-approve option where it has one. Use with care."
+  "settings.auto.desc": "Off by default: agents ask before they act. On starts the agent the way Omarchy's own launcher does, with its auto-approve option where it has one. Use with care.",
+  "note.paste_prompt": "The prompt is on the clipboard and the agent opens empty: paste it. This keeps the text off the command line, where other accounts on this computer could read it.",
+  "note.prompt_visible": "The prompt is passed as an argument, so other accounts on this computer can read it while the agent session runs. You turned this on in the settings.",
+  "settings.promptArg": "Pass the prompt to the agent as an argument",
+  "settings.promptArg.desc": "Off by default: the agent opens empty and the prompt is on the clipboard for you to paste. On starts the agent with the prompt already in place, but the text is then on the agent's command line, which other local accounts can read while the session runs."
 }
