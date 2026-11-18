@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -30,6 +31,17 @@ def with_binaries(*present):
     return mock.patch("launch.shutil.which", lambda name: "/usr/bin/" + name if name in present else None)
 
 
+def inner(cmd):
+    """The command the private-file wrapper runs, without the env prefix and the wrapper itself."""
+    if "snap-to-agent" in cmd:
+        return cmd[cmd.index("snap-to-agent") + 2:]
+    return cmd
+
+
+def prefix(cmd):
+    return cmd[:cmd.index("bash")] if "bash" in cmd else cmd
+
+
 class LaunchTests(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()
@@ -41,7 +53,8 @@ class LaunchTests(unittest.TestCase):
             r = launch.launch(plan, "/tmp", run=run, spawn=spawn, home=self.home, environ={})
         argv, kw = spawn.calls[0]
         self.assertEqual(argv[:2], ["omarchy-launch-tui", "--app-id=org.omarchy.agent"])
-        self.assertEqual(argv[-5:], ["claude", "--permission-mode", "manual", "--", "help me"])
+        self.assertEqual(argv[-5:], ["claude", "--permission-mode", "manual", "--", agents.PROMPT_MARKER])
+        self.assertNotIn("help me", argv)  # the prompt is not on any command line we start
         self.assertEqual(kw["cwd"], "/tmp")
         self.assertTrue(kw["start_new_session"])
         for bad in agents.FORBIDDEN_FLAGS:
@@ -52,13 +65,15 @@ class LaunchTests(unittest.TestCase):
         plan = agents.build_launch("claude", "q")
         run = Fake({"omarchy-agent-account-home": (0, "/acct/work", ""), "env": (1, "", "")})
         cmd = launch.agent_command(plan, run, self.home, {})
-        self.assertEqual(cmd[:6], ["env", "-u", "CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME=/acct/work",
-                                   "CLAUDE_CONFIG_DIR=/acct/work", "claude"])
+        self.assertEqual(cmd[:5], ["env", "-u", "CLAUDE_CONFIG_DIR", "OMARCHY_AGENT_CLAUDE_HOME=/acct/work",
+                                   "CLAUDE_CONFIG_DIR=/acct/work"])
+        self.assertEqual(inner(cmd)[0], "claude")
 
     def test_users_own_provider_home_is_left_alone(self):
         plan = agents.build_launch("codex", "q")
         cmd = launch.agent_command(plan, Fake({"env": (1, "", "")}), self.home, {"CODEX_HOME": "/mine"})
-        self.assertEqual(cmd[0], "codex")
+        self.assertEqual(inner(cmd)[0], "codex")
+        self.assertEqual(prefix(cmd), [])
 
     def test_clipboard_agent_gets_prompt_on_clipboard_and_a_toast(self):
         plan = agents.build_launch("kimi", "the prompt")
@@ -83,8 +98,8 @@ class LaunchTests(unittest.TestCase):
         plan = agents.build_launch("amp", "first message")
         cmd = launch.agent_command(plan, Fake({"env": (1, "", "")}), self.home, {})
         self.assertEqual(cmd[:2], ["bash", "-c"])
-        self.assertIn("exec \"$0\"", cmd[2])
-        self.assertEqual(cmd[3:], ["amp", "first message"])
+        self.assertEqual(inner(cmd), ["amp"])
+        self.assertNotIn("first message", cmd)
 
     def test_unknown_agent_uses_generic_fallback(self):
         plan = agents.build_launch("brand-new", "p")
@@ -151,8 +166,60 @@ class LaunchTests(unittest.TestCase):
             f.write("#!/bin/sh\n")
         os.chmod(own, 0o755)
         cmd = launch.agent_command(plan, Fake({"env": (1, "", ""), "omarchy-agent-account-home": (0, "", "")}), self.home, {})
-        self.assertEqual(cmd[-1], prompt)
+        self.assertEqual(cmd[-1], agents.PROMPT_MARKER)
+        self.assertNotIn(prompt, cmd)
         self.assertIn(own, cmd)
+
+
+class PrivatePromptTests(unittest.TestCase):
+    """Runs the real wrapper with a stand-in agent: the text arrives intact and is never on a command line."""
+
+    NASTY = "line one & \\1 'quoted' \"dq\" $HOME `x` $(y)\n  line two  *\n@@ not the marker @@"
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.out = os.path.join(self.dir, "out")
+        self.agent = os.path.join(self.dir, "fake-agent")
+        with open(self.agent, "w") as f:
+            f.write('#!/bin/bash\nprintf "%s\\0" "$@" > "$OUT_ARGS"\ncat > "$OUT_IN"\n')
+        os.chmod(self.agent, 0o755)
+        self.env = dict(os.environ, OUT_ARGS=self.out + ".args", OUT_IN=self.out + ".in", XDG_RUNTIME_DIR=self.dir)
+
+    def _run(self, plan):
+        path = launch.write_prompt_file(plan.get("stdin") if plan["how"] == "stdin" else plan["prompt"], self.env)
+        self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o600")
+        plan = dict(plan, argv=[self.agent] + plan["argv"][1:])
+        if plan.get("private_argv"):
+            plan["private_argv"] = [self.agent] + plan["private_argv"][1:]
+        else:
+            plan["argv"] = [self.agent]
+        cmd = launch.agent_command(plan, Fake({"env": (1, "", "")}), self.dir, {"CODEX_HOME": "x"}, path)
+        self.assertNotIn("one &", " ".join(cmd))
+        subprocess.run(cmd, env=self.env, check=True, stdin=subprocess.DEVNULL)
+        self.assertFalse(os.path.exists(path))  # deleted as soon as it was read
+
+    def test_argument_agent_gets_the_exact_text(self):
+        self._run(agents.build_launch("kilo", self.NASTY))  # prompt joined to a flag: --prompt=<text>
+        args = open(self.out + ".args").read().split("\0")[:-1]
+        self.assertEqual(args, ["--prompt=" + self.NASTY])
+
+    def test_argument_agent_with_separate_argument(self):
+        self._run(agents.build_launch("codex", self.NASTY))
+        args = open(self.out + ".args").read().split("\0")[:-1]
+        self.assertEqual(args, ["--", self.NASTY])
+
+    def test_stdin_agent_gets_the_exact_text_and_a_newline(self):
+        self._run(agents.build_launch("amp", self.NASTY))
+        self.assertEqual(open(self.out + ".in").read(), self.NASTY + "\n")
+
+    def test_launch_writes_a_private_file_and_cleans_up_when_the_start_fails(self):
+        plan = agents.build_launch("claude", "secret text")
+        def boom(*a, **k):
+            raise OSError("no terminal")
+        with with_binaries("claude"), self.assertRaises(launch.LaunchError):
+            launch.launch(plan, "/tmp", run=Fake({"env": (1, "", "")}), spawn=boom, home=self.dir,
+                          environ={"XDG_RUNTIME_DIR": self.dir})
+        self.assertEqual([n for n in os.listdir(self.dir) if n.startswith("snap-to-agent-prompt-")], [])
 
 
 if __name__ == "__main__":

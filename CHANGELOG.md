@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- **The prompt no longer goes on the command line of the terminal, the launcher or a wrapper.** It is written to a private file (mode 600 in `$XDG_RUNTIME_DIR`), read and deleted by a small `bash` wrapper right before the agent starts. Before, other local accounts could read the clipboard, terminal or notification text in the prompt through procfs while the launcher ran, and for Amp (stdin adapter) the whole session. An agent that takes its prompt as an argument still has it on its own command line.
+
 ## 0.3.0
 
 First public release. It contains everything from 0.1 and 0.2 below, plus:
