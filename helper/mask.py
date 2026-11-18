@@ -2,7 +2,8 @@
 
 Pure functions, standard library only. Every secret is replaced by a numbered
 placeholder such as [MASKED:github-token:2]. mask() returns the originals too,
-so the panel can undo one masking; the originals are never written to disk.
+so the panel can undo one masking. The originals live in the panel's memory only: anything that
+goes to disk passes through scrub_state() first.
 """
 import re
 
@@ -84,3 +85,30 @@ def unmask(text, findings, finding_id):
 
 def has_secrets(text):
     return bool(mask(text)["findings"])
+
+
+def _scrub(value):
+    if isinstance(value, str):
+        return mask(value)["text"]
+    if isinstance(value, dict):
+        return {k: _scrub(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scrub(v) for v in value]
+    return value
+
+
+def scrub_state(state):
+    """A copy of a captured state that is safe to keep on disk: every text in it is masked.
+
+    The OCR record also keeps which kinds of secrets the picture showed (`secret_kinds`), because the
+    masked OCR text can no longer tell, and "send again" must still warn about the screenshot.
+    """
+    out = _scrub(state if isinstance(state, dict) else {})
+    ocr = state.get("ocr") if isinstance(state, dict) else None
+    if isinstance(ocr, dict) and isinstance(out.get("ocr"), dict):
+        kinds = []
+        for f in mask(str(ocr.get("text", "")))["findings"]:
+            if f["kind"] not in kinds:
+                kinds.append(f["kind"])
+        out["ocr"]["secret_kinds"] = kinds or [k for k in ocr.get("secret_kinds", []) if isinstance(k, str)]
+    return out

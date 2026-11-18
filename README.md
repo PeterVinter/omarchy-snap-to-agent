@@ -73,7 +73,7 @@ omarchy plugin remove io.github.petervinter.snap-to-agent
 rm -rf ~/.cache/snap-to-agent
 ```
 
-The plugin writes nothing else: captures and `last.json` in `~/.cache/snap-to-agent/`. It makes no network calls of its own; only the agent you choose does.
+The plugin writes nothing else: captures, context files, `last.json` and the history in `~/.cache/snap-to-agent/` (mode 600, deleted after the retention period). It makes no network calls of its own; only the agent you choose does.
 
 ## Capture modes
 
@@ -120,7 +120,7 @@ Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json
 
 The panel keeps your last 20 sends: a thumbnail, which agent got it, in which folder, when, and your question. **Send again** opens the preview with that capture (it never sends by itself), **Delete** removes the entry and its files. Right-click the bar icon, or run `omarchy-shell io.github.petervinter.snap-to-agent history`.
 
-Only the masked question is kept in the list. The captured state needed to open an entry again (including the context as captured) is a separate file in `~/.cache/snap-to-agent/`, mode 600, removed with the entry.
+Only the masked question is kept in the list. The captured state needed to open an entry again is a separate file in `~/.cache/snap-to-agent/`, mode 600, removed with the entry. Every text in it (clipboard, terminal output, notification, OCR and context) is masked before it is written, so **Send again** shows the masked text and a mask can no longer be undone there. The screenshot file is kept as it is (see below).
 
 ![History](docs/screenshots/06-history.png)
 
@@ -132,7 +132,7 @@ Everything in `config.json` can be changed in the panel (the Settings tab, or `o
 
 ### Captures are deleted after a week
 
-Screenshots, context files and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
+Screenshots, context files, `last.json` and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
 
 ### Languages
 
@@ -213,7 +213,8 @@ In the terminal's directory when the capture comes from a terminal. Otherwise in
 
 - Nothing is sent without the preview and your confirmation.
 - Text is masked for private keys, JWTs, AWS, GitHub, Anthropic, OpenAI, Slack, Google and Stripe keys, Bearer tokens, URL passwords and `password=`/`token=`-style assignments. Masking is pattern based and not a guarantee: read the preview.
-- The originals of masked values never leave the helper process and are never written to disk.
+- The originals of masked values stay in the panel's memory while the preview is open. Every captured text (clipboard, terminal output, notification, OCR, context) is masked before `last.json` and the history are written, so no raw secret from those texts reaches the disk.
+- **Screenshots are the exception.** The image file is saved as it is, in `~/.cache/snap-to-agent/` (mode 600), and is deleted after the retention period (7 days by default; set `retention_days` lower, or `0` keeps it). If it shows a secret, the secret is in that file; the preview warns and offers **Send text only (masked)**, but the file stays until it is cleaned up or you delete the history entry.
 - **By default the prompt never appears on any command line.** Agents that take their prompt as an argument (most of them) are started empty and the prompt goes to the clipboard with a toast: paste it. Other accounts on the computer can read process arguments (`/proc/<pid>/cmdline`) while a session runs, and the prompt can contain clipboard, terminal and notification text. Amp takes the prompt on stdin through a private file (mode 600 in `$XDG_RUNTIME_DIR`, deleted by `helper/start_agent.py` as soon as it is read), which never touches a command line.
 - **Opt-in:** turn on **Pass the prompt to the agent as an argument** in the settings (`prompt_as_argument` in `config.json`, off by default) to start the agent with the prompt already in place. The same private file hands it over to the agent, so the terminal, launcher and wrapper never see it, but the agent's own process has it on its command line for as long as the session lives. The preview warns in red while this is on.
 - If the prompt is long, the context goes to a file in the cache and the agent is told to read it.

@@ -1,7 +1,7 @@
 """The last sends, for "send again" and "delete", and the cleanup of old captures.
 
 Everything lives in the cache folder (mode 600/700). An entry keeps only the masked
-question; the captured state needed to open it again is a separate file in the same
+question; the captured state needed to open it again (with every text masked) is a separate file in the same
 folder, removed with the entry and by the retention cleanup.
 """
 import json
@@ -10,10 +10,11 @@ import re
 import time
 
 import capture
+import mask
 
 MAX_ENTRIES = 20
 _ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9]{3}$")
-_OWNED = (".png", "-context.md", ".state.json")
+_OWNED = (".png", "-context.md", ".state.json", "last.json")
 
 
 def _path():
@@ -67,7 +68,7 @@ def add(state, question, report, mode):
              "capture_path": shot.get("path", ""), "file": report.get("file", "")}
     fd = os.open(_state_file(entry_id), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump({k: state.get(k) for k in ("mode", "capture", "context", "source", "ocr")}, f)
+        json.dump(mask.scrub_state({k: state.get(k) for k in ("mode", "capture", "context", "source", "ocr")}), f)
     entries = [entry] + load()
     for old in entries[MAX_ENTRIES:]:
         _remove_files(old)
