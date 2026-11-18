@@ -157,7 +157,9 @@ def _capture_notification(index, cfg):
 
 
 def _cleanup(cfg=None):
-    """Old captures go after the retention period (7 days by default)."""
+    """Old captures go after the retention period (7 days by default). Stored states that an older
+    version wrote with raw text are masked first, so they never outlive an upgrade (also with retention off)."""
+    history.scrub_legacy()
     try:
         history.cleanup((cfg or config.load())["retention_days"])
     except OSError:
@@ -267,6 +269,7 @@ def cmd_copy(_args):
 
 def cmd_last(_args):
     """The last capture, for "send again". Local file only."""
+    history.scrub_file(os.path.join(capture.cache_dir(), "last.json"))  # an older version may have stored it raw
     try:
         with open(os.path.join(capture.cache_dir(), "last.json"), encoding="utf-8") as f:
             state = json.load(f)

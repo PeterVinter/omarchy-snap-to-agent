@@ -76,6 +76,42 @@ def add(state, question, report, mode):
     return entry_id
 
 
+def scrub_file(path):
+    """Masks the texts in a stored state file, in place. For files an older version wrote with the
+    raw captured text. Returns True when the file was rewritten. Idempotent: a file that is already
+    masked is left alone."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(state, dict):
+        return False
+    clean = mask.scrub_state(state)
+    if clean == state:
+        return False
+    try:
+        _write(path, clean)
+    except OSError:
+        return False
+    return True
+
+
+def scrub_legacy():
+    """Scrubs every stored state file (last.json and the history states). Returns how many changed."""
+    try:
+        names = os.listdir(capture.cache_dir())
+    except OSError:
+        return 0
+    changed = 0
+    for name in names:
+        if name == "last.json" or name.endswith(".state.json"):
+            path = os.path.join(capture.cache_dir(), name)
+            if os.path.isfile(path) and scrub_file(path):
+                changed += 1
+    return changed
+
+
 def listing():
     out = []
     for e in load():
@@ -90,6 +126,7 @@ def open_state(entry_id):
     """The stored state, to show the preview again. None when it is gone."""
     if not _ID.match(str(entry_id)):
         return None
+    scrub_file(_state_file(entry_id))  # an older version may have stored it unmasked
     try:
         with open(_state_file(entry_id), encoding="utf-8") as f:
             state = json.load(f)

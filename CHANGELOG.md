@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- **Old cache files are scrubbed on upgrade.** `last.json` and the history state files written by 0.3.x to 0.4.0 still held the raw captured text, and were reopened unchanged until they expired (never, with retention off). They are now masked in place, atomically and mode 600, on the first access after the upgrade: on every capture, when the history is opened, and right before Send again reads them. Scrubbing is idempotent, so files that are already masked are left alone, and a file that is not valid JSON is not touched.
+
 ## 0.4.1
 
 - **No raw text on disk.** `last.json` and the history state files used to hold the captured clipboard, terminal, notification and OCR text as it was, before masking, which the README said never happened. They are now written with every text masked. Consequences: **Send again** shows the masked text and a mask cannot be undone on a reopened entry; the warning about secrets in the screenshot is kept (`secret_kinds`).

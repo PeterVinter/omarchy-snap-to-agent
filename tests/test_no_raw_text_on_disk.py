@@ -96,5 +96,57 @@ class DiskTests(unittest.TestCase):
         self.assertTrue(os.path.exists(path))  # a fresh one stays
 
 
+class LegacyFileTests(unittest.TestCase):
+    """Files written by 0.3.x and 0.4.0 hold the raw text; they must not survive an upgrade."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        os.environ["SNAP_TO_AGENT_CACHE"] = self.tmp.name
+        self.last = os.path.join(self.tmp.name, "last.json")
+        self.entry = os.path.join(self.tmp.name, "20260101-120000-000.state.json")
+        for path in (self.last, self.entry):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(state(), f)  # the old format: raw
+
+    def tearDown(self):
+        self.tmp.cleanup()
+        os.environ.pop("SNAP_TO_AGENT_CACHE", None)
+
+    def raw_left(self):
+        return [p for p in (self.last, self.entry) if KEY in open(p).read() or "hunter2hunter2" in open(p).read()]
+
+    def test_scrub_legacy_masks_old_files_in_place(self):
+        self.assertEqual(len(self.raw_left()), 2)
+        self.assertEqual(history.scrub_legacy(), 2)
+        self.assertEqual(self.raw_left(), [])
+        self.assertEqual(history.scrub_legacy(), 0)  # idempotent: nothing left to change
+        self.assertEqual(json.load(open(self.last))["ocr"]["secret_kinds"], ["github-token"])
+
+    def test_the_cleanup_every_capture_runs_scrubs_them_even_with_retention_off(self):
+        snap._cleanup({"retention_days": 0})
+        self.assertEqual(self.raw_left(), [])
+        self.assertTrue(os.path.exists(self.last))  # scrubbed, not deleted
+
+    def test_send_again_never_returns_the_raw_text_from_an_old_last_json(self):
+        out = snap.cmd_last([])
+        self.assertTrue(out["ok"] or out["error"] == "no-last")
+        self.assertNotIn(KEY, json.dumps(out))
+        self.assertEqual(self.raw_left(), [p for p in [self.entry]])  # only the file not asked for yet
+
+    def test_opening_an_old_history_entry_never_returns_the_raw_text(self):
+        out = history.open_state("20260101-120000-000")
+        self.assertNotIn(KEY, json.dumps(out))
+        self.assertNotIn("hunter2hunter2", json.dumps(out))
+        self.assertEqual(self.raw_left(), [self.last])
+
+    def test_a_broken_or_foreign_file_is_left_alone(self):
+        with open(self.last, "w") as f:
+            f.write("not json")
+        with open(self.entry, "w") as f:
+            f.write("[1, 2]")
+        self.assertEqual(history.scrub_legacy(), 0)
+        self.assertEqual(open(self.last).read(), "not json")
+
+
 if __name__ == "__main__":
     unittest.main()
