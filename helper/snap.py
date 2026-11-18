@@ -25,6 +25,7 @@ import config  # noqa: E402
 import context  # noqa: E402
 import history  # noqa: E402
 import hook  # noqa: E402
+import mask  # noqa: E402
 import launch  # noqa: E402
 import ocr  # noqa: E402
 import runner  # noqa: E402
@@ -191,11 +192,13 @@ def cmd_notifications(_args):
 
 
 def save_last(state):
-    """Keeps the last capture so `resend` can open it again. Local, mode 600."""
+    """Keeps the last capture so `resend` can open it again. Local, mode 600, and masked: the
+    captured texts are scrubbed first, so no raw secret from the clipboard, a terminal, a notification
+    or the OCR is ever written to disk. The screenshot file itself is kept as it is (see README)."""
     path = os.path.join(capture.cache_dir(), "last.json")
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(state, f)
+        json.dump(mask.scrub_state(state), f)
 
 
 def read_state():
@@ -219,7 +222,7 @@ def _compose(data, write_file=False):
         str(data.get("mode", "region")), allow=allow, ocr_text=str(ocr_state.get("text", "")),
         send_image=data.get("send_image", True) is not False,
         context_text=data.get("context_text") if isinstance(data.get("context_text"), str) else None,
-        write_file=write_file, source=source, ocr_missing=bool(ocr_state.get("missing")),
+        write_file=write_file, source=source, ocr_missing=bool(ocr_state.get("missing")), ocr_secret_kinds=ocr_state.get("secret_kinds"),
         questions=cfg["questions"], auto=cfg["agent_auto"], as_argument=cfg["prompt_as_argument"])
 
 

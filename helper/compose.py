@@ -121,7 +121,8 @@ def target(agent, cwd, has_image=True, auto=False, as_argument=False):
 
 
 def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_image=True,
-            context_text=None, write_file=False, source=None, ocr_missing=False, questions=None, auto=False, as_argument=False):
+            context_text=None, write_file=False, source=None, ocr_missing=False, questions=None, auto=False, as_argument=False,
+            ocr_secret_kinds=None):
     """Returns the preview record. `context_text` replaces the generated block (the user edited it)."""
     has_image = bool(shot) and send_image
     tgt = target(agent, (ctx or {}).get("cwd"), has_image, auto, as_argument)
@@ -132,7 +133,8 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
     question = given or default_question(mode, questions)
     block = context_text if context_text is not None else context_block(
         ctx, shot, mode, image_mode, ocr_text, send_image, source)
-    image_secrets = ocr_kinds(ocr_text) if shot else []
+    saved = [k for k in (ocr_secret_kinds or []) if isinstance(k, str)]
+    image_secrets = (ocr_kinds(ocr_text) or saved) if shot else []
 
     qm = maskmod.mask(question, allow)
     cm = maskmod.mask(block, allow, start=len(qm["findings"]) + 1)

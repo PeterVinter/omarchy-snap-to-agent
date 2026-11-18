@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- **No raw text on disk.** `last.json` and the history state files used to hold the captured clipboard, terminal, notification and OCR text as it was, before masking, which the README said never happened. They are now written with every text masked. Consequences: **Send again** shows the masked text and a mask cannot be undone on a reopened entry; the warning about secrets in the screenshot is kept (`secret_kinds`).
+- `last.json` is now removed by the retention cleanup too (it was never cleaned before).
+- README: says plainly that screenshot files are saved as they are and kept for the retention period.
+
 ## 0.4.0
 
 - **The prompt goes to the clipboard by default; passing it as an argument is now an opt-in.** Reported on the marketplace review of 0.3.0/0.3.1: an agent that takes its prompt as an argument keeps the text on its own command line for the whole session, readable by other local accounts. Agents are now started empty (Claude Code still in manual permission mode, or auto mode if you turned that on) and the prompt is on the clipboard with a toast. Amp keeps taking it on stdin.
