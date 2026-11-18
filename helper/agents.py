@@ -111,7 +111,11 @@ _BARE = {
     "cursor-agent": ["cursor-agent"],
     "kiro-cli": ["kiro-cli", "chat"],
     "ori": ["ori", "code"],
+    # Claude Code's own default can be "auto", so a plain start still asks for the mode that asks first.
+    "claude": ["claude", "--permission-mode", "manual"],
 }
+# The same, when the user turned on agent auto mode.
+_BARE_AUTO = {"claude": ["claude", "--permission-mode", "auto"]}
 
 
 def binary_of(template):
@@ -155,10 +159,15 @@ def image_mode(agent):
     return IMAGE_SUPPORT.get(agent, "path")
 
 
-def build_launch(agent, prompt, auto=False):
+def build_launch(agent, prompt, auto=False, as_argument=False):
     """Builds the launch plan for an agent.
 
     auto=True starts it with its auto-approve option (see AUTO); the default never does.
+
+    as_argument=False (the default) keeps the prompt off every command line: an agent that would
+    take it as an argument is started plain and the prompt goes to the clipboard, because other
+    local accounts can read process arguments. as_argument=True is the user's explicit opt-in to
+    passing it as an argument. An agent that reads it on stdin never needs the opt-in.
 
     Returns {display, known, how, argv, private_argv, stdin, clipboard, image_mode, note}.
     argv is the agent command without any terminal wrapper. private_argv is the same command with
@@ -177,7 +186,7 @@ def build_launch(agent, prompt, auto=False):
         plan["how"] = "none"
         plan["note"] = "no agent"
         return plan
-    if ad["how"] == "arg" and len(prompt.encode("utf-8", "replace")) <= MAX_ARG_BYTES:
+    if ad["how"] == "arg" and as_argument and len(prompt.encode("utf-8", "replace")) <= MAX_ARG_BYTES:
         plan["argv"] = _expand(ad["template"], prompt)
         plan["private_argv"] = _expand(ad["template"], PROMPT_MARKER)
     elif ad["how"] == "stdin" and len(prompt.encode("utf-8", "replace")) <= MAX_ARG_BYTES:
@@ -185,8 +194,9 @@ def build_launch(agent, prompt, auto=False):
         plan["stdin"] = prompt
     else:
         plan["how"] = "clipboard"
+        bare = (_BARE_AUTO if use_auto else {}).get(ad["agent"]) or _BARE.get(ad["agent"])
         plan["argv"] = _expand(ad["template"], prompt) if ad["how"] == "clipboard" else list(
-            _BARE.get(ad["agent"], [binary_of(ad["template"])]))
+            bare or [binary_of(ad["template"])])
         plan["clipboard"] = prompt
         plan["note"] = "paste"
     if not ad["known"]:

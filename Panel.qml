@@ -956,6 +956,16 @@ Panel {
               onClicked: root.setCfg(["agent_auto"], !root.cfg.agent_auto)
             }
 
+            Toggle {
+              width: parent.width
+              label: strings.t("settings.promptArg")
+              description: strings.t("settings.promptArg.desc")
+              checked: root.cfg ? root.cfg.prompt_as_argument : false
+              foreground: root.fg
+              accent: root.warn
+              onClicked: root.setCfg(["prompt_as_argument"], !root.cfg.prompt_as_argument)
+            }
+
             NumberField {
               width: parent.width
               label: strings.t("settings.retention")
@@ -1411,7 +1421,7 @@ Panel {
               width: column.width
               text: strings.t("note." + modelData, "")
               visible: text !== ""
-              color: (modelData === "agent_not_installed" || modelData === "auto_mode") ? root.warn : root.dim
+              color: (modelData === "agent_not_installed" || modelData === "auto_mode" || modelData === "prompt_visible") ? root.warn : root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               wrapMode: Text.WordWrap

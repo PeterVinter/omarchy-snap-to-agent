@@ -4,7 +4,7 @@
 
 **Send what is on your screen to your default AI agent, with the context it needs to help right away.**
 
-Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, press Enter. Your agent opens in the right folder with the screenshot or text, the app and window title and, for a terminal, its folder and git branch already attached. No copying, no pasting, no explaining.
+Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, press Enter. Your agent opens in the right folder with the screenshot or text, the app and window title and, for a terminal, its folder and git branch already attached. No copying, no explaining, and one paste (or none, if you let the agent take the prompt as an argument).
 
 <img src="preview.png" alt="The Snap to Agent panel in a dark and a light Omarchy theme: thumbnail, target agent and folder, question, masked secrets and context" width="900">
 
@@ -126,7 +126,7 @@ Only the masked question is kept in the list. The captured state needed to open 
 
 ### Settings
 
-Everything in `config.json` can be changed in the panel (the Settings tab, or `omarchy-shell io.github.petervinter.snap-to-agent settings`): OCR on or off, whether agents may act without asking (off by default), how long captures are kept (7 days by default, `0` keeps them), image size limits, a default question per mode, the blocklist, and the terminal-error hook, which is only installed after you confirm. **Save** writes the file with mode 600, **Reset to defaults** deletes it.
+Everything in `config.json` can be changed in the panel (the Settings tab, or `omarchy-shell io.github.petervinter.snap-to-agent settings`): OCR on or off, whether agents may act without asking (off by default), whether the prompt is passed to the agent as an argument (off by default, see Privacy), how long captures are kept (7 days by default, `0` keeps them), image size limits, a default question per mode, the blocklist, and the terminal-error hook, which is only installed after you confirm. **Save** writes the file with mode 600, **Reset to defaults** deletes it.
 
 ![Settings](docs/screenshots/07-settings.png)
 
@@ -178,32 +178,32 @@ All 24 agents that `omarchy-default-agent` lists in Omarchy 4.5 have an adapter.
 
 Images: no agent has a tested image flag yet, so every agent gets the screenshot as a **file path** in the prompt (and, from v0.2, the OCR text). The preview says so. A flag will be added per agent only after it has been tested.
 
-| Agent | Name | How the prompt reaches it | Image |
+| Agent | Name | How the prompt reaches it (default) | Image |
 |---|---|---|---|
 | Amp | `amp` | Prompt typed in as first message | Path in prompt |
-| Antigravity | `agy` | Prompt on the command line | Path in prompt |
-| Claude Code | `claude` | Prompt on the command line | Path in prompt |
-| Codex | `codex` | Prompt on the command line | Path in prompt |
-| Command Code | `commandcode` | Prompt on the command line | Path in prompt |
+| Antigravity | `agy` | Clipboard by default; command line if you opt in | Path in prompt |
+| Claude Code | `claude` | Clipboard by default; command line if you opt in | Path in prompt |
+| Codex | `codex` | Clipboard by default; command line if you opt in | Path in prompt |
+| Command Code | `commandcode` | Clipboard by default; command line if you opt in | Path in prompt |
 | Crush | `crush` | Starts empty, prompt on the clipboard | Path in prompt |
-| Cursor CLI | `cursor-agent` | Prompt on the command line | Path in prompt |
+| Cursor CLI | `cursor-agent` | Clipboard by default; command line if you opt in | Path in prompt |
 | DeepSeek Harness | `dsh` | Starts empty, prompt on the clipboard | Path in prompt |
-| Devin CLI | `devin` | Prompt on the command line | Path in prompt |
+| Devin CLI | `devin` | Clipboard by default; command line if you opt in | Path in prompt |
 | Freebuff | `freebuff` | Starts empty, prompt on the clipboard | Path in prompt |
-| GitHub Copilot | `copilot` | Prompt on the command line | Path in prompt |
-| Grok | `grok` | Prompt on the command line | Path in prompt |
-| Hermes | `hermes` | Prompt on the command line | Path in prompt |
-| Kilo | `kilo` | Prompt on the command line | Path in prompt |
+| GitHub Copilot | `copilot` | Clipboard by default; command line if you opt in | Path in prompt |
+| Grok | `grok` | Clipboard by default; command line if you opt in | Path in prompt |
+| Hermes | `hermes` | Clipboard by default; command line if you opt in | Path in prompt |
+| Kilo | `kilo` | Clipboard by default; command line if you opt in | Path in prompt |
 | Kimi | `kimi` | Starts empty, prompt on the clipboard | Path in prompt |
-| Kiro CLI | `kiro-cli` | Prompt on the command line | Path in prompt |
-| MiniMax Code | `mcode` | Prompt on the command line | Path in prompt |
-| Muse Code | `muse` | Prompt on the command line | Path in prompt |
-| Oh My Pi | `omp` | Prompt on the command line | Path in prompt |
-| OpenClaw | `openclaw` | Prompt on the command line | Path in prompt |
-| OpenCode | `opencode` | Prompt on the command line | Path in prompt |
-| Ori | `ori` | Prompt on the command line | Path in prompt |
-| Pi | `pi` | Prompt on the command line | Path in prompt |
-| Qwen Code | `qwen` | Prompt on the command line | Path in prompt |
+| Kiro CLI | `kiro-cli` | Clipboard by default; command line if you opt in | Path in prompt |
+| MiniMax Code | `mcode` | Clipboard by default; command line if you opt in | Path in prompt |
+| Muse Code | `muse` | Clipboard by default; command line if you opt in | Path in prompt |
+| Oh My Pi | `omp` | Clipboard by default; command line if you opt in | Path in prompt |
+| OpenClaw | `openclaw` | Clipboard by default; command line if you opt in | Path in prompt |
+| OpenCode | `opencode` | Clipboard by default; command line if you opt in | Path in prompt |
+| Ori | `ori` | Clipboard by default; command line if you opt in | Path in prompt |
+| Pi | `pi` | Clipboard by default; command line if you opt in | Path in prompt |
+| Qwen Code | `qwen` | Clipboard by default; command line if you opt in | Path in prompt |
 
 ## Where the agent starts
 
@@ -214,7 +214,8 @@ In the terminal's directory when the capture comes from a terminal. Otherwise in
 - Nothing is sent without the preview and your confirmation.
 - Text is masked for private keys, JWTs, AWS, GitHub, Anthropic, OpenAI, Slack, Google and Stripe keys, Bearer tokens, URL passwords and `password=`/`token=`-style assignments. Masking is pattern based and not a guarantee: read the preview.
 - The originals of masked values never leave the helper process and are never written to disk.
-- The prompt is handed to the terminal through a private file (mode 600, in `$XDG_RUNTIME_DIR`, deleted by `helper/start_agent.py` as soon as it is read), not as a command-line argument of the terminal, the launcher or a wrapper, because other local accounts can read process arguments. The one remaining copy is on the command line of an agent that only accepts its prompt as an argument (most of them); the agent's own process lives as long as the session. Amp takes it on stdin and the clipboard-only agents never get it on a command line.
+- **By default the prompt never appears on any command line.** Agents that take their prompt as an argument (most of them) are started empty and the prompt goes to the clipboard with a toast: paste it. Other accounts on the computer can read process arguments (`/proc/<pid>/cmdline`) while a session runs, and the prompt can contain clipboard, terminal and notification text. Amp takes the prompt on stdin through a private file (mode 600 in `$XDG_RUNTIME_DIR`, deleted by `helper/start_agent.py` as soon as it is read), which never touches a command line.
+- **Opt-in:** turn on **Pass the prompt to the agent as an argument** in the settings (`prompt_as_argument` in `config.json`, off by default) to start the agent with the prompt already in place. The same private file hands it over to the agent, so the terminal, launcher and wrapper never see it, but the agent's own process has it on its command line for as long as the session lives. The preview warns in red while this is on.
 - If the prompt is long, the context goes to a file in the cache and the agent is told to read it.
 
 ## Development

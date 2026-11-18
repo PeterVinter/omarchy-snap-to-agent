@@ -131,5 +131,9 @@
   "note.auto_mode": "Autoläge är på: den här agenten kan agera utan att fråga dig först. Stäng av det i inställningarna.",
   "settings.agent": "Agent",
   "settings.auto": "Låt agenten agera utan att fråga (autoläge)",
-  "settings.auto.desc": "Av som standard: agenter frågar innan de agerar. På startar agenten som Omarchys egen startare gör, med dess auto-godkännande där det finns. Använd med försiktighet."
+  "settings.auto.desc": "Av som standard: agenter frågar innan de agerar. På startar agenten som Omarchys egen startare gör, med dess auto-godkännande där det finns. Använd med försiktighet.",
+  "note.paste_prompt": "Prompten ligger i urklipp och agenten öppnas tom: klistra in den. Då hamnar texten aldrig på en kommandorad, där andra konton på datorn kan läsa den.",
+  "note.prompt_visible": "Prompten skickas som argument, så andra konton på datorn kan läsa den medan agentsessionen pågår. Du har slagit på det i inställningarna.",
+  "settings.promptArg": "Skicka prompten till agenten som argument",
+  "settings.promptArg.desc": "Av som standard: agenten öppnas tom och prompten ligger i urklipp så att du klistrar in den. På startar agenten med prompten på plats, men texten ligger då på agentens kommandorad, som andra lokala konton kan läsa medan sessionen pågår."
 }

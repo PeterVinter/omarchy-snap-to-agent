@@ -45,6 +45,12 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.load(self.write(json.dumps({"region_tool": "rm -rf"})))["region_tool"], "auto")
         self.assertEqual(config.load(self.write(json.dumps({"region_tool": 3})))["region_tool"], "auto")
 
+    def test_prompt_as_argument_is_off_unless_the_file_says_true(self):
+        self.assertFalse(config.load(self.write("{}"))["prompt_as_argument"])
+        self.assertTrue(config.load(self.write(json.dumps({"prompt_as_argument": True})))["prompt_as_argument"])
+        self.assertFalse(config.load(self.write(json.dumps({"prompt_as_argument": "yes"})))["prompt_as_argument"])
+        self.assertFalse(config.load(self.write(json.dumps({"prompt_as_argument": 1})))["prompt_as_argument"])
+
     def test_agent_auto_is_off_unless_the_file_says_true(self):
         self.assertFalse(config.load(self.write("{}"))["agent_auto"])
         self.assertTrue(config.load(self.write(json.dumps({"agent_auto": True})))["agent_auto"])

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- **The prompt goes to the clipboard by default; passing it as an argument is now an opt-in.** Reported on the marketplace review of 0.3.0/0.3.1: an agent that takes its prompt as an argument keeps the text on its own command line for the whole session, readable by other local accounts. Agents are now started empty (Claude Code still in manual permission mode, or auto mode if you turned that on) and the prompt is on the clipboard with a toast. Amp keeps taking it on stdin.
+- **New setting `prompt_as_argument`** (off by default, a toggle in the settings view). On gives the old behavior: the agent starts with the prompt in place. The preview shows a red warning while it is on, and a note on the default path tells you to paste.
+- The same fallback is used for prompts too large for a command line; it now keeps Claude Code's explicit permission mode instead of starting it bare.
+
 ## 0.3.1
 
 - **The prompt no longer goes on the command line of the terminal, the launcher or a wrapper.** It is written to a private file (mode 600 in `$XDG_RUNTIME_DIR`), read and deleted by a small `bash` wrapper right before the agent starts. Before, other local accounts could read the clipboard, terminal or notification text in the prompt through procfs while the launcher ran, and for Amp (stdin adapter) the whole session. The hand-over is done by `helper/start_agent.py`, a script and not a shell one-liner: a live test with Ghostty showed that the terminal launcher re-parses the command it is given, which breaks shell syntax. The old Amp wrapper in 0.3.0 had the same weakness. An agent that takes its prompt as an argument still has it on its own command line.

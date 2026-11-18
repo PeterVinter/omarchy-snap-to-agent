@@ -100,6 +100,16 @@ class ComposeTests(unittest.TestCase):
         self.assertEqual(compose.compose("", CTX, SHOT, "error", agent="claude")["default_source"], "builtin")
         self.assertEqual(compose.compose("", CTX, SHOT, "error", agent="claude", questions={"error": "Fix"})["default_source"], "config")
 
+    def test_prompt_delivery_notes(self):
+        notes = lambda agent, **kw: compose.compose("q", CTX, SHOT, "region", agent=agent, **kw)["notes"]
+        self.assertIn("paste_prompt", notes("claude"))
+        self.assertNotIn("prompt_visible", notes("claude"))
+        self.assertIn("prompt_visible", notes("claude", as_argument=True))
+        self.assertNotIn("paste_prompt", notes("claude", as_argument=True))
+        for n in ("paste_prompt", "prompt_visible"):
+            self.assertNotIn(n, notes("amp"))
+            self.assertNotIn(n, notes("kimi"))
+
     def test_auto_mode_is_flagged_only_when_on_and_only_where_it_applies(self):
         self.assertNotIn("auto_mode", compose.compose("q", CTX, SHOT, "region", agent="claude")["notes"])
         self.assertIn("auto_mode", compose.compose("q", CTX, SHOT, "region", agent="claude", auto=True)["notes"])
