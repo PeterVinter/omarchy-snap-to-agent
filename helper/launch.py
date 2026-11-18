@@ -7,6 +7,7 @@ auto-approve flag, so the agent asks before it acts.
 import os
 import shutil
 import subprocess
+import tempfile
 
 import agents
 import context as ctxmod
@@ -69,9 +70,43 @@ def account_prefix(agent, run=_runner.run, environ=None):
     return prefix
 
 
-def agent_command(plan, run=_runner.run, home=None, environ=None):
-    """The command to run inside the terminal, for a plan from agents.build_launch."""
+# The prompt travels in a private file (mode 600, deleted as soon as it is read), never as a
+# command-line argument of the terminal, the launcher or these wrappers: other local accounts can
+# read every process's arguments. Only the agent itself, for an agent that takes its prompt as an
+# argument, ends up with the text on its own command line.
+STARTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "start_agent.py")
+
+
+def prompt_file_dir(environ=None):
+    environ = os.environ if environ is None else environ
+    d = environ.get("XDG_RUNTIME_DIR", "")
+    return d if d and os.path.isdir(d) else tempfile.gettempdir()
+
+
+def write_prompt_file(text, environ=None):
+    """Writes the prompt to a new private file and returns its path."""
+    fd, path = tempfile.mkstemp(prefix="snap-to-agent-prompt-", dir=prompt_file_dir(environ))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+    except OSError:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+        raise
+    return path
+
+
+def agent_command(plan, run=_runner.run, home=None, environ=None, prompt_file="/run/user/prompt"):
+    """The command to run inside the terminal, for a plan from agents.build_launch.
+
+    prompt_file is the private file that holds the prompt (see write_prompt_file).
+    """
     argv = list(plan["argv"])
+    private = plan.get("private_argv")
+    if private:
+        argv = list(private)
     if not argv:
         raise LaunchError("no-agent", "no agent to start")
     binary = agents.binary_of(argv)
@@ -79,9 +114,11 @@ def agent_command(plan, run=_runner.run, home=None, environ=None):
     own = user_install(plan["agent"], run, home) if plan["agent"] == binary else ""
     if own:
         argv[argv.index(binary)] = own
-    if plan["how"] == "stdin" and plan.get("stdin") is not None:
+    if private:
+        argv = ["python3", "-I", STARTER, "--arg", prompt_file] + argv
+    elif plan["how"] == "stdin" and plan.get("stdin") is not None:
         # The first message goes in on stdin, as omarchy-agent does for Amp.
-        argv = ["bash", "-c", 'printf "%s\\n" "$1" | exec "$0"', argv[0], plan["stdin"]]
+        argv = ["python3", "-I", STARTER, "--stdin", prompt_file] + argv
     return account_prefix(plan["agent"], run, environ) + argv
 
 
@@ -111,7 +148,15 @@ def launch(plan, cwd, run=_runner.run, spawn=subprocess.Popen, dry_run=False, ho
     if shutil.which(agents.binary_of(plan["argv"])) is None and not user_install(plan["agent"], run, home):
         raise LaunchError("not-installed", "%s is not installed" % plan["display"])
     cwd = ctxmod.launch_dir(cwd, home)
-    command = agent_command(plan, run, home, environ)
+    private = bool(plan.get("private_argv")) or (plan["how"] == "stdin" and plan.get("stdin") is not None)
+    text = plan.get("stdin") if plan["how"] == "stdin" else plan.get("prompt")
+    prompt_file = None
+    if private and not dry_run:
+        try:
+            prompt_file = write_prompt_file(text, environ)
+        except OSError as e:
+            raise LaunchError("start-failed", str(e))
+    command = agent_command(plan, run, home, environ, prompt_file or "/run/user/prompt")
     full = terminal_command(command)
     report = {"ok": True, "display": plan["display"], "cwd": cwd, "command": full,
               "clipboard": plan["clipboard"] is not None, "notified": False, "dry_run": dry_run}
@@ -126,6 +171,11 @@ def launch(plan, cwd, run=_runner.run, spawn=subprocess.Popen, dry_run=False, ho
         spawn(full, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
               start_new_session=True)
     except OSError as e:
+        if prompt_file:
+            try:
+                os.unlink(prompt_file)
+            except OSError:
+                pass
         raise LaunchError("start-failed", str(e))
     return report
 

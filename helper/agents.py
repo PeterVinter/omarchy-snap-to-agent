@@ -99,6 +99,10 @@ IMAGE_SUPPORT = {}
 
 MAX_ARG_BYTES = 100_000
 
+# Stands for the prompt in plan["private_argv"]. The launcher swaps in the real text from a private file
+# just before it starts the agent, so the prompt is never on the command line of the terminal or a wrapper.
+PROMPT_MARKER = "@@SNAP_TO_AGENT_PROMPT@@"
+
 
 # What to run when the prompt cannot go on the command line (too large) or the
 # agent takes it another way. Defaults to just the program name.
@@ -156,8 +160,9 @@ def build_launch(agent, prompt, auto=False):
 
     auto=True starts it with its auto-approve option (see AUTO); the default never does.
 
-    Returns {display, known, how, argv, stdin, clipboard, image_mode, note}.
-    argv is the agent command without any terminal wrapper. clipboard is the text
+    Returns {display, known, how, argv, private_argv, stdin, clipboard, image_mode, note}.
+    argv is the agent command without any terminal wrapper. private_argv is the same command with
+    PROMPT_MARKER in place of the prompt (None unless the prompt goes on the agent's command line). clipboard is the text
     to copy before launching, or None.
     """
     ad = adapter_for(agent)
@@ -166,7 +171,7 @@ def build_launch(agent, prompt, auto=False):
     if use_auto:
         ad = dict(ad, template=AUTO[ad["agent"]])
     plan = {"agent": ad["agent"], "display": ad["display"], "known": ad["known"], "how": ad["how"],
-            "argv": [], "stdin": None, "clipboard": None, "image_mode": image_mode(ad["agent"]), "note": "",
+            "argv": [], "private_argv": None, "prompt": prompt, "stdin": None, "clipboard": None, "image_mode": image_mode(ad["agent"]), "note": "",
             "auto": use_auto}
     if not ad["template"]:
         plan["how"] = "none"
@@ -174,6 +179,7 @@ def build_launch(agent, prompt, auto=False):
         return plan
     if ad["how"] == "arg" and len(prompt.encode("utf-8", "replace")) <= MAX_ARG_BYTES:
         plan["argv"] = _expand(ad["template"], prompt)
+        plan["private_argv"] = _expand(ad["template"], PROMPT_MARKER)
     elif ad["how"] == "stdin" and len(prompt.encode("utf-8", "replace")) <= MAX_ARG_BYTES:
         plan["argv"] = list(ad["template"])
         plan["stdin"] = prompt
