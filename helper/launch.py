@@ -74,12 +74,7 @@ def account_prefix(agent, run=_runner.run, environ=None):
 # command-line argument of the terminal, the launcher or these wrappers: other local accounts can
 # read every process's arguments. Only the agent itself, for an agent that takes its prompt as an
 # argument, ends up with the text on its own command line.
-_ARG_WRAPPER = (
-    'f=$1; shift; p=$(<"$f"); rm -f -- "$f"; a=(); '
-    'for x in "$@"; do case $x in *@@SNAP_TO_AGENT_PROMPT@@*) x=${x%%@@SNAP_TO_AGENT_PROMPT@@*}$p${x#*@@SNAP_TO_AGENT_PROMPT@@};; esac; a+=("$x"); done; '
-    'exec "${a[@]}"'
-)
-_STDIN_WRAPPER = 'f=$1; shift; exec 3<"$f"; rm -f -- "$f"; { cat <&3; echo; } | exec "$@"'
+STARTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "start_agent.py")
 
 
 def prompt_file_dir(environ=None):
@@ -120,10 +115,10 @@ def agent_command(plan, run=_runner.run, home=None, environ=None, prompt_file="/
     if own:
         argv[argv.index(binary)] = own
     if private:
-        argv = ["bash", "-c", _ARG_WRAPPER, "snap-to-agent", prompt_file] + argv
+        argv = ["python3", "-I", STARTER, "--arg", prompt_file] + argv
     elif plan["how"] == "stdin" and plan.get("stdin") is not None:
         # The first message goes in on stdin, as omarchy-agent does for Amp.
-        argv = ["bash", "-c", _STDIN_WRAPPER, "snap-to-agent", prompt_file] + argv
+        argv = ["python3", "-I", STARTER, "--stdin", prompt_file] + argv
     return account_prefix(plan["agent"], run, environ) + argv
 
 

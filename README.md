@@ -214,7 +214,7 @@ In the terminal's directory when the capture comes from a terminal. Otherwise in
 - Nothing is sent without the preview and your confirmation.
 - Text is masked for private keys, JWTs, AWS, GitHub, Anthropic, OpenAI, Slack, Google and Stripe keys, Bearer tokens, URL passwords and `password=`/`token=`-style assignments. Masking is pattern based and not a guarantee: read the preview.
 - The originals of masked values never leave the helper process and are never written to disk.
-- The prompt is handed to the terminal through a private file (mode 600, in `$XDG_RUNTIME_DIR`, deleted as soon as it is read), not as a command-line argument of the terminal, the launcher or a wrapper, because other local accounts can read process arguments. The one remaining copy is on the command line of an agent that only accepts its prompt as an argument (most of them); the agent's own process lives as long as the session. Amp takes it on stdin and the clipboard-only agents never get it on a command line.
+- The prompt is handed to the terminal through a private file (mode 600, in `$XDG_RUNTIME_DIR`, deleted by `helper/start_agent.py` as soon as it is read), not as a command-line argument of the terminal, the launcher or a wrapper, because other local accounts can read process arguments. The one remaining copy is on the command line of an agent that only accepts its prompt as an argument (most of them); the agent's own process lives as long as the session. Amp takes it on stdin and the clipboard-only agents never get it on a command line.
 - If the prompt is long, the context goes to a file in the cache and the agent is told to read it.
 
 ## Development

@@ -2,7 +2,7 @@
 
 ## 0.3.1
 
-- **The prompt no longer goes on the command line of the terminal, the launcher or a wrapper.** It is written to a private file (mode 600 in `$XDG_RUNTIME_DIR`), read and deleted by a small `bash` wrapper right before the agent starts. Before, other local accounts could read the clipboard, terminal or notification text in the prompt through procfs while the launcher ran, and for Amp (stdin adapter) the whole session. An agent that takes its prompt as an argument still has it on its own command line.
+- **The prompt no longer goes on the command line of the terminal, the launcher or a wrapper.** It is written to a private file (mode 600 in `$XDG_RUNTIME_DIR`), read and deleted by a small `bash` wrapper right before the agent starts. Before, other local accounts could read the clipboard, terminal or notification text in the prompt through procfs while the launcher ran, and for Amp (stdin adapter) the whole session. The hand-over is done by `helper/start_agent.py`, a script and not a shell one-liner: a live test with Ghostty showed that the terminal launcher re-parses the command it is given, which breaks shell syntax. The old Amp wrapper in 0.3.0 had the same weakness. An agent that takes its prompt as an argument still has it on its own command line.
 
 ## 0.3.0
 

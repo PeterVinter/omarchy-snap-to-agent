@@ -33,13 +33,13 @@ def with_binaries(*present):
 
 def inner(cmd):
     """The command the private-file wrapper runs, without the env prefix and the wrapper itself."""
-    if "snap-to-agent" in cmd:
-        return cmd[cmd.index("snap-to-agent") + 2:]
+    if launch.STARTER in cmd:
+        return cmd[cmd.index(launch.STARTER) + 3:]
     return cmd
 
 
 def prefix(cmd):
-    return cmd[:cmd.index("bash")] if "bash" in cmd else cmd
+    return cmd[:cmd.index("python3")] if "python3" in cmd else cmd
 
 
 class LaunchTests(unittest.TestCase):
@@ -97,7 +97,7 @@ class LaunchTests(unittest.TestCase):
     def test_amp_gets_its_prompt_on_stdin_inside_the_terminal(self):
         plan = agents.build_launch("amp", "first message")
         cmd = launch.agent_command(plan, Fake({"env": (1, "", "")}), self.home, {})
-        self.assertEqual(cmd[:2], ["bash", "-c"])
+        self.assertEqual(cmd[:3], ["python3", "-I", launch.STARTER])
         self.assertEqual(inner(cmd), ["amp"])
         self.assertNotIn("first message", cmd)
 
@@ -197,6 +197,23 @@ class PrivatePromptTests(unittest.TestCase):
         self.assertNotIn("one &", " ".join(cmd))
         subprocess.run(cmd, env=self.env, check=True, stdin=subprocess.DEVNULL)
         self.assertFalse(os.path.exists(path))  # deleted as soon as it was read
+
+    def test_marker_is_the_same_in_the_planner_and_the_starter(self):
+        import start_agent
+        self.assertEqual(start_agent.MARKER, agents.PROMPT_MARKER)
+
+    def test_the_command_has_no_shell_syntax_for_a_launcher_to_mangle(self):
+        # A live test showed that the terminal launcher re-parses the command it is given.
+        cmd = launch.agent_command(agents.build_launch("claude", "p"), Fake({"env": (1, "", "")}), self.dir, {}, "/run/user/1/f")
+        for word in cmd:
+            for bad in ("${", "$(", "`", '"', "'", ";", "|"):
+                self.assertNotIn(bad, word)
+
+    def test_a_long_stdin_prompt_is_delivered_whole(self):
+        long = ("x" * 99) + "\n"
+        long = long * 900  # about 90 KB, larger than a pipe buffer
+        self._run(agents.build_launch("amp", long))
+        self.assertEqual(open(self.out + ".in").read(), long + "\n")
 
     def test_argument_agent_gets_the_exact_text(self):
         self._run(agents.build_launch("kilo", self.NASTY))  # prompt joined to a flag: --prompt=<text>
