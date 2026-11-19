@@ -48,6 +48,7 @@
   "error.missing-grim": "grim är inte installerat",
   "error.missing-slurp": "slurp är inte installerat",
   "error.capture-failed": "Fångsten misslyckades",
+  "error.visibility-unknown": "Det gick inte att avgöra vilka fönster som syns, så inget fångades",
   "error.no-default-agent": "Ingen standardagent är vald",
   "error.no-default-agent.body": "Välj den agent Omarchy ska använda och försök igen.",
   "error.not-installed": "Agenten är inte installerad",

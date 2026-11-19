@@ -7,6 +7,7 @@ import os
 
 import agents
 import context as ctxmod
+import history
 import mask as maskmod
 import ocr as _ocr
 
@@ -95,6 +96,24 @@ def context_block(ctx, shot=None, mode="region", agent_image_mode="path", ocr_te
     return "\n\n".join(parts)
 
 
+def strip_image_refs(text, shot):
+    """Removes the screenshot path and the image notes from text that is sent without the image,
+    including from a context the user edited by hand."""
+    path = str((shot or {}).get("path") or "")
+    notes = set(IMAGE_NOTES.values())
+    kept = []
+    for line in str(text).split("\n"):
+        if line.strip() in notes or (path and path in line and line.lstrip().startswith("- Screenshot:")):
+            continue
+        kept.append(line)
+    out = "\n".join(kept)
+    if path:
+        out = out.replace(path, "[screenshot not sent]")
+    if "- Screenshot:" not in out:
+        out = out.rstrip("\n") + "\n- Screenshot: not sent (text only)"
+    return out
+
+
 def target(agent, cwd, has_image=True, auto=False, as_argument=False):
     """Who gets it and where, for the 'Sending to' line, plus note codes for the panel."""
     notes = []
@@ -133,10 +152,13 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
     question = given or default_question(mode, questions)
     block = context_text if context_text is not None else context_block(
         ctx, shot, mode, image_mode, ocr_text, send_image, source)
+    if shot and not send_image and context_text is not None:
+        block = strip_image_refs(block, shot)
     saved = [k for k in (ocr_secret_kinds or []) if isinstance(k, str)]
     image_secrets = (ocr_kinds(ocr_text) or saved) if shot else []
 
     qm = maskmod.mask(question, allow)
+    kept_question = maskmod.mask(question)["text"]  # what history stores: masked whatever was undone for sending
     cm = maskmod.mask(block, allow, start=len(qm["findings"]) + 1)
     findings = qm["findings"] + cm["findings"]
     masked_count = sum(1 for f in findings if f["masked"])
@@ -152,7 +174,7 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
         notes.append("image_not_sent")
     if shot and ocr_missing:
         notes.append("ocr_missing")
-    result = {"ok": tgt.get("ok", False), "target": tgt, "question": qm["text"], "context": cm["text"],
+    result = {"ok": tgt.get("ok", False), "target": tgt, "question": qm["text"], "history_question": kept_question, "context": cm["text"],
               "image_secrets": image_secrets, "has_image": bool(shot), "default_source": default_source,
               "prompt": prompt, "full_prompt": prompt, "oversize": len(prompt) > INLINE_LIMIT, "file": "", "notes": notes,
               # Originals stay here; the panel only gets what it needs to show and undo.
@@ -161,7 +183,9 @@ def compose(question, ctx, shot, mode, agent=None, allow=(), ocr_text="", send_i
     if result["oversize"]:
         result["notes"].append("context_in_file")
         base = os.path.splitext((shot or {}).get("path") or "")[0]
-        path = (base + "-context.md") if base else ""
+        # A file that holds values the user chose to send unmasked is short-lived (see history.cleanup).
+        unmasked = any(not f["masked"] for f in findings)
+        path = (base + (history.OPEN_SUFFIX if unmasked else "-context.md")) if base else ""
         short = "%s\n\nThe full context is in this file, read it first:\n%s" % (qm["text"], path)
         if write_file and path:
             fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

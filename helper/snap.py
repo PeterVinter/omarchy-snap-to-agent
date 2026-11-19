@@ -44,10 +44,17 @@ def _blocked_error(found):
 
 
 def _guard_for(cfg):
-    """Stops a capture before it starts when a blocked window is in the way."""
+    """Stops a capture before it starts when a blocked window is in the way.
+
+    grim captures the composited rectangle, so every visible window that overlaps it counts, not just
+    the focused one. If the compositor cannot say what is visible, nothing is captured."""
     def guard(geometry, win):
-        windows = [win] if win else context.visible_windows()
-        found = blocklist.find_blocked(windows, cfg["blocklist"], None if win else geometry)
+        windows = context.visible_windows()
+        if windows is None:
+            raise capture.CaptureError("visibility-unknown", "could not tell which windows are visible; nothing was captured")
+        if win and not any(w.get("address") == win.get("address") for w in windows):
+            windows = windows + [win]
+        found = blocklist.find_blocked(windows, cfg["blocklist"], geometry)
         if found:
             raise _blocked_error(found)
     return guard
@@ -252,7 +259,7 @@ def cmd_send(args):
             "program": plan["agent"], "auto": plan["auto"]}
     if not report["dry_run"]:
         try:
-            history.add(data, r["question"], done, str(data.get("mode", "region")))
+            history.add(data, r["history_question"], done, str(data.get("mode", "region")))
         except OSError:
             pass  # a full disk must not turn a successful send into an error
     return done

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+- **Capture guard looks at everything the screenshot would contain.** `grim` captures the composited rectangle, so a window capture used to be able to include a blocked window overlapping the focused one. The blocklist check now runs against every visible window that overlaps the captured rectangle, for window and region captures alike. Visible special-workspace (scratchpad) windows count too. If Hyprland cannot say which windows are visible, nothing is captured (new error `visibility-unknown`) instead of treating it as "no windows".
+- **Send text only really is text only.** An edited context box could still carry the screenshot path the plugin had added before the edit. With the image switched off, the path and the image notes are now removed from the final text, wherever they appear in it.
+- **History and context stay masked whatever you undo for sending.** Undoing a mask used to leave the unmasked value in the question stored in the history; the history now always stores the masked question. When a prompt is too large for the command line and a value you chose to send unmasked goes into the context file, that file is named `*-context-open.md` and is deleted after one hour (also when retention is off). Fully masked context files follow the retention setting as before.
+
 ## 0.4.2
 
 - **Old cache files are scrubbed on upgrade.** `last.json` and the history state files written by 0.3.x to 0.4.0 still held the raw captured text, and were reopened unchanged until they expired (never, with retention off). They are now masked in place, atomically and mode 600, on the first access after the upgrade: on every capture, when the history is opened, and right before Send again reads them. Scrubbing is idempotent, so files that are already masked are left alone, and a file that is not valid JSON is not touched.

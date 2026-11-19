@@ -112,7 +112,7 @@ Every image capture is read with `tesseract`. If the text in the picture looks l
 
 ### Blocklist and configuration
 
-The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region, and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title. `omasnap` does not tell the plugin which area you picked, so a region capture is refused while any blocked window is visible on screen; with `slurp` only windows under the region count. Set `region_tool` to `auto` (default), `omasnap` or `slurp` in the settings file.
+The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region (for window captures, any visible window overlapping the captured rectangle counts, not only the focused one, and visible special-workspace windows count too; if Hyprland cannot say what is visible, nothing is captured), and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title. `omasnap` does not tell the plugin which area you picked, so a region capture is refused while any blocked window is visible on screen; with `slurp` only windows under the region count. Set `region_tool` to `auto` (default), `omasnap` or `slurp` in the settings file.
 
 Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json](config.example.json)): `ocr`, `image` limits, per-mode default `questions`, and the `blocklist` lists. A missing or broken file means the defaults. The settings can also be changed in the panel.
 
@@ -120,7 +120,7 @@ Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json
 
 The panel keeps your last 20 sends: a thumbnail, which agent got it, in which folder, when, and your question. **Send again** opens the preview with that capture (it never sends by itself), **Delete** removes the entry and its files. Right-click the bar icon, or run `omarchy-shell io.github.petervinter.snap-to-agent history`.
 
-Only the masked question is kept in the list. The captured state needed to open an entry again is a separate file in `~/.cache/snap-to-agent/`, mode 600, removed with the entry. Every text in it (clipboard, terminal output, notification, OCR and context) is masked before it is written, so **Send again** shows the masked text and a mask can no longer be undone there. The screenshot file is kept as it is (see below).
+Only the masked question is kept in the list, even if you undid a mask to send it. The captured state needed to open an entry again is a separate file in `~/.cache/snap-to-agent/`, mode 600, removed with the entry. Every text in it (clipboard, terminal output, notification, OCR and context) is masked before it is written, so **Send again** shows the masked text and a mask can no longer be undone there. The screenshot file is kept as it is (see below).
 
 ![History](docs/screenshots/06-history.png)
 
@@ -132,7 +132,7 @@ Everything in `config.json` can be changed in the panel (the Settings tab, or `o
 
 ### Captures are deleted after a week
 
-Screenshots, context files, `last.json` and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
+A context file that holds a value you chose to send unmasked (`*-context-open.md`, only for prompts too large for a command line) is deleted after one hour, whatever the retention setting. Screenshots, other context files, `last.json` and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
 
 ### Languages
 
