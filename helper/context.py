@@ -28,15 +28,34 @@ def monitor_name(monitor_id, run=_runner.run):
     return ""
 
 
+def _shown_workspaces(monitors):
+    """Workspace ids on screen: each monitor's active one plus a visible special workspace."""
+    shown = set()
+    for m in monitors:
+        shown.add((m.get("activeWorkspace") or {}).get("id"))
+        special = (m.get("specialWorkspace") or {}).get("id")
+        if special:  # 0 or missing means no special workspace is showing
+            shown.add(special)
+    return shown
+
+
 def visible_windows(run=_runner.run):
-    """Every window that is on screen right now, most recently focused first."""
-    _, cout, _ = run(["hyprctl", "clients", "-j"])
-    _, mout, _ = run(["hyprctl", "monitors", "-j"])
+    """Every window that is on screen right now, most recently focused first.
+
+    Returns None when the compositor could not be asked, so callers can stop instead of
+    treating "unknown" as "nothing there".
+    """
+    ccode, cout, _ = run(["hyprctl", "clients", "-j"])
+    mcode, mout, _ = run(["hyprctl", "monitors", "-j"])
+    if ccode != 0 or mcode != 0:
+        return None
     try:
-        clients = json.loads(cout or "[]")
-        shown = {(m.get("activeWorkspace") or {}).get("id") for m in json.loads(mout or "[]")}
-    except ValueError:
-        return []
+        clients = json.loads(cout)
+        shown = _shown_workspaces(json.loads(mout))
+    except (ValueError, TypeError, AttributeError):
+        return None
+    if not isinstance(clients, list):
+        return None
     out = [c for c in clients if isinstance(c, dict) and c.get("mapped", True) and not c.get("hidden", False)
            and (c.get("workspace") or {}).get("id") in shown]
     return sorted(out, key=lambda c: c.get("focusHistoryID", 99))
@@ -52,8 +71,8 @@ def window_at(x, y, run=_runner.run):
     _, mout, _ = run(["hyprctl", "monitors", "-j"])
     try:
         clients = json.loads(cout or "[]")
-        shown = {(m.get("activeWorkspace") or {}).get("id") for m in json.loads(mout or "[]")}
-    except ValueError:
+        shown = _shown_workspaces(json.loads(mout or "[]"))
+    except (ValueError, TypeError, AttributeError):
         return None
     best = None
     for c in clients if isinstance(clients, list) else []:

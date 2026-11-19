@@ -14,7 +14,9 @@ import mask
 
 MAX_ENTRIES = 20
 _ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9]{3}$")
-_OWNED = (".png", "-context.md", ".state.json", "last.json")
+OPEN_SUFFIX = "-context-open.md"   # context file that holds values the user chose to send unmasked
+OPEN_TTL = 3600                    # seconds; these files go after an hour, whatever the retention setting
+_OWNED = (".png", "-context.md", OPEN_SUFFIX, ".state.json", "last.json")
 
 
 def _path():
@@ -150,11 +152,20 @@ def delete(entry_id):
 
 def cleanup(days, now=None):
     """Removes captures, context files and history entries older than `days`. 0 keeps everything."""
-    if not days or days < 1:
-        return 0
-    cutoff = (now or time.time()) - days * 86400
+    now = now or time.time()
     root = capture.cache_dir()
     removed = 0
+    for name in os.listdir(root):  # unmasked context files expire quickly, even with retention off
+        path = os.path.join(root, name)
+        if name.endswith(OPEN_SUFFIX) and os.path.isfile(path) and os.path.getmtime(path) < now - OPEN_TTL:
+            try:
+                os.remove(path)
+                removed += 1
+            except OSError:
+                pass
+    if not days or days < 1:
+        return removed
+    cutoff = now - days * 86400
     for name in os.listdir(root):
         path = os.path.join(root, name)
         if name.endswith(_OWNED) and os.path.isfile(path) and os.path.getmtime(path) < cutoff:

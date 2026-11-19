@@ -166,6 +166,41 @@ class ComposeTests(unittest.TestCase):
             self.assertGreater(len(r["full_prompt"]), compose.INLINE_LIMIT)
             self.assertIn("context_in_file", r["notes"])
 
+    def test_text_only_removes_the_screenshot_from_an_edited_context(self):
+        generated = compose.context_block(CTX, SHOT, "region", "path", "", True, None)
+        self.assertIn(SHOT["path"], generated)
+        edited = generated + "\nsee also %s please" % SHOT["path"]
+        r = compose.compose("x", CTX, SHOT, "region", agent="claude", context_text=edited, send_image=False)
+        self.assertNotIn(SHOT["path"], r["prompt"])
+        self.assertNotIn(SHOT["path"], r["full_prompt"])
+        self.assertIn("not sent (text only)", r["prompt"])
+        self.assertIn("build failed", r["prompt"])  # the rest of the edit survives
+
+    def test_the_edited_context_keeps_the_screenshot_when_the_image_is_sent(self):
+        generated = compose.context_block(CTX, SHOT, "region", "path", "", True, None)
+        r = compose.compose("x", CTX, SHOT, "region", agent="claude", context_text=generated, send_image=True)
+        self.assertIn(SHOT["path"], r["prompt"])
+
+    def test_history_question_stays_masked_when_a_mask_is_undone_for_sending(self):
+        key = "ghp_0123456789abcdefghijklmnopqrstuvwxyzAB"
+        q = "why does %s fail" % key
+        first = compose.compose(q, CTX, SHOT, "region", agent="claude")
+        self.assertNotIn(key, first["history_question"])
+        ids = [f["id"] for f in first["findings"]]
+        undone = compose.compose(q, CTX, SHOT, "region", agent="claude", allow=ids)
+        self.assertIn(key, undone["question"])  # what is sent
+        self.assertNotIn(key, undone["history_question"])  # what is kept
+
+    def test_oversize_file_with_an_undone_mask_is_the_short_lived_kind(self):
+        with tempfile.TemporaryDirectory() as d:
+            shot = dict(SHOT, path=os.path.join(d, "a.png"))
+            big = dict(CTX, logs="token=ghp_0123456789abcdefghijklmnopqrstuvwxyzAB\n" + "line\n" * 30000)
+            masked = compose.compose("q", big, shot, "region", agent="claude", write_file=True)
+            self.assertTrue(masked["file"].endswith("-context.md"))
+            ids = [f["id"] for f in masked["findings"]]
+            opened = compose.compose("q", big, shot, "region", agent="claude", write_file=True, allow=ids)
+            self.assertTrue(opened["file"].endswith("-context-open.md"))
+
 
 if __name__ == "__main__":
     unittest.main()

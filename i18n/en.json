@@ -45,6 +45,7 @@
   "error.missing-grim": "grim is not installed",
   "error.missing-slurp": "slurp is not installed",
   "error.capture-failed": "The capture failed",
+  "error.visibility-unknown": "Could not tell which windows are visible, so nothing was captured",
   "error.no-default-agent": "No default agent is set",
   "error.no-default-agent.body": "Choose the agent Omarchy should use, then try again.",
   "error.not-installed": "The agent is not installed",

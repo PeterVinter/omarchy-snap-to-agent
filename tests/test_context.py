@@ -119,5 +119,27 @@ class WindowAtTests(unittest.TestCase):
         self.assertIsNone(context.window_at(1, 1, bad))
 
 
+class VisibleWindowsTests(unittest.TestCase):
+    def run_with(self, clients, monitors, code=0):
+        def run(argv, timeout=15, input=None):
+            return code, json.dumps(clients if argv[1] == "clients" else monitors), ""
+        return context.visible_windows(run)
+
+    def test_special_workspace_windows_count_when_one_is_showing(self):
+        clients = [{"class": "normal", "workspace": {"id": 1}}, {"class": "scratch", "workspace": {"id": -98}}]
+        shown = self.run_with(clients, [{"activeWorkspace": {"id": 1}, "specialWorkspace": {"id": -98}}])
+        self.assertEqual(sorted(w["class"] for w in shown), ["normal", "scratch"])
+
+    def test_a_hidden_special_workspace_does_not_count(self):
+        clients = [{"class": "normal", "workspace": {"id": 1}}, {"class": "scratch", "workspace": {"id": -98}}]
+        shown = self.run_with(clients, [{"activeWorkspace": {"id": 1}, "specialWorkspace": {"id": 0}}])
+        self.assertEqual([w["class"] for w in shown], ["normal"])
+
+    def test_unknown_visibility_is_none_not_empty(self):
+        self.assertIsNone(self.run_with([], [], code=1))
+        bad = lambda argv, timeout=15, input=None: (0, "not json", "")  # noqa: E731
+        self.assertIsNone(context.visible_windows(bad))
+
+
 if __name__ == "__main__":
     unittest.main()
