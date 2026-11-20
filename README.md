@@ -2,11 +2,11 @@
 
 # Omarchy Snap to Agent
 
-**Send what is on your screen to your default AI agent, with the context it needs to help right away.**
+**Send a screenshot to your AI agent.**
 
-Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, press Enter. Your agent opens in the right folder with the screenshot or text, the app and window title and, for a terminal, its folder and git branch already attached. No copying, no explaining, and one paste (or none, if you let the agent take the prompt as an argument).
+Send what is on your screen to your default AI agent, with the context it needs to help right away. Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, press Enter. Your agent opens in the right folder with the screenshot or text, the app and window title and, for a terminal, its folder and git branch already attached. No copying, no explaining, and one paste (or none, if you let the agent take the prompt as an argument).
 
-<img src="preview.png" alt="The Snap to Agent panel in a dark and a light Omarchy theme: thumbnail, target agent and folder, question, masked secrets and context" width="900">
+<img src="preview.png" alt="Snap to Agent: the panel with the screenshot, the target agent and folder and a masked secret, and two more panels behind it, one showing masked secrets and one in a light theme" width="900">
 
 </div>
 
