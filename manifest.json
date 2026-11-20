@@ -5,7 +5,7 @@
   "version": "0.4.4",
   "author": "Peter Vinter",
   "license": "MIT",
-  "description": "Send what is on your screen to your default AI agent, with the context it needs to help right away. Capture a region, a window, your last terminal error, a notification or the clipboard, check the preview, and your agent opens in the right folder, ready to work. Works with every agent Omarchy supports, asks before it acts, and masks likely secrets first.",
+  "description": "Send a screenshot to your AI agent.",
   "kinds": [
     "bar-widget"
   ],

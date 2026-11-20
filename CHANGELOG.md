@@ -6,6 +6,7 @@ Two Low notes from the marketplace review of 0.4.3 (#15169).
 
 - **Unmasked context files no longer wait for the next capture.** A context file that holds a value you chose to send unmasked (`*-context-open.md`, only for prompts too large for a command line) is now removed 10 minutes after the agent has started (a detached process does it, so it also happens when you capture nothing more). The expiry sweep runs on every helper call instead of only on capture and history, and its limit is 15 minutes instead of one hour, whatever the retention setting. If the agent does not start, the file stays so you can send again, and the sweep still removes it after 15 minutes.
 - **The capture guard reads both Hyprland 0.56 and 0.57.** Hyprland 0.57 identifies a workspace by `address` instead of `id` (only numbered workspaces keep an `id`, and a special workspace has none). The guard now reads either layout, so a visible special workspace still blocks a capture on 0.57. When a monitor or a visible window is in a layout it does not recognise, nothing is captured (`visibility-unknown`), instead of treating the answer as "no special workspace". The 0.57 layout was checked against the Hyprland 0.57.2 sources; it has not been run on a machine with 0.57 installed.
+- **A short description.** The manifest description, which the marketplace shows on the plugin card, is now one short sentence instead of three. The README still has the full story. The README's status line now says v0.4.
 
 ## 0.4.3
 
