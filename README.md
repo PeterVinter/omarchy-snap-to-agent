@@ -33,7 +33,7 @@ omarchy plugin enable io.github.petervinter.snap-to-agent --section right
 
 Then bind a key (see [Suggested keybindings](#suggested-keybindings)) and it is one keystroke from anywhere. Requires Omarchy 4.x; everything else it needs ships with Omarchy. No sudo.
 
-> **Status: v0.3.** Five capture modes, history, a settings view, OCR, a blocklist and the optional shell hook. English and Swedish are shipped; more languages are one file each. See [ROADMAP.md](ROADMAP.md).
+> **Status: v0.4.** Five capture modes, history, a settings view, OCR, a blocklist and the optional shell hook. English and Swedish are shipped; more languages are one file each. See [ROADMAP.md](ROADMAP.md).
 
 ## What it does
 
