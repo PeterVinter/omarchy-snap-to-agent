@@ -7,6 +7,8 @@ folder, removed with the entry and by the retention cleanup.
 import json
 import os
 import re
+import subprocess
+import sys
 import time
 
 import capture
@@ -15,7 +17,8 @@ import mask
 MAX_ENTRIES = 20
 _ID = re.compile(r"^[0-9]{8}-[0-9]{6}-[0-9]{3}$")
 OPEN_SUFFIX = "-context-open.md"   # context file that holds values the user chose to send unmasked
-OPEN_TTL = 3600                    # seconds; these files go after an hour, whatever the retention setting
+OPEN_TTL = 900                     # seconds; the backstop: these files go after 15 minutes, whatever the retention setting
+OPEN_GRACE = 600                   # seconds after the agent started that its own copy of the file is removed
 _OWNED = (".png", "-context.md", OPEN_SUFFIX, ".state.json", "last.json")
 
 
@@ -150,12 +153,12 @@ def delete(entry_id):
     return True
 
 
-def cleanup(days, now=None):
-    """Removes captures, context files and history entries older than `days`. 0 keeps everything."""
+def sweep_open_files(now=None):
+    """Removes unmasked context files older than OPEN_TTL. Runs on every helper call, with any retention setting."""
     now = now or time.time()
     root = capture.cache_dir()
     removed = 0
-    for name in os.listdir(root):  # unmasked context files expire quickly, even with retention off
+    for name in os.listdir(root):
         path = os.path.join(root, name)
         if name.endswith(OPEN_SUFFIX) and os.path.isfile(path) and os.path.getmtime(path) < now - OPEN_TTL:
             try:
@@ -163,6 +166,46 @@ def cleanup(days, now=None):
                 removed += 1
             except OSError:
                 pass
+    return removed
+
+
+def remove_open_file_later(path, delay=OPEN_GRACE, spawn=subprocess.Popen):
+    """After the agent has started, removes the unmasked context file it was pointed at.
+
+    The agent reads the file by path, usually as its first step, but it may wait for the user to approve
+    that read, so the file stays for a grace period. A detached process does the removal, so it also
+    happens when no further helper call comes. Only this plugin's own `*-context-open.md` files in
+    the cache folder qualify. Returns whether a removal was scheduled."""
+    if not _is_open_file(path):
+        return False
+    spawn([sys.executable, "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "remove_later.py"),
+           str(int(delay)), path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+          start_new_session=True)
+    return True
+
+
+def _is_open_file(path):
+    path = str(path or "")
+    return (path.endswith(OPEN_SUFFIX) and os.path.dirname(os.path.realpath(path)) == os.path.realpath(capture.cache_dir())
+            and not os.path.islink(path))
+
+
+def remove_open_file(path):
+    """Removes one unmasked context file, if it is one of ours. Returns whether it was removed."""
+    if not _is_open_file(path):
+        return False
+    try:
+        os.remove(path)
+        return True
+    except OSError:
+        return False
+
+
+def cleanup(days, now=None):
+    """Removes captures, context files and history entries older than `days`. 0 keeps everything."""
+    now = now or time.time()
+    root = capture.cache_dir()
+    removed = sweep_open_files(now)
     if not days or days < 1:
         return removed
     cutoff = now - days * 86400

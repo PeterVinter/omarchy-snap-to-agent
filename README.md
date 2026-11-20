@@ -112,7 +112,7 @@ Every image capture is read with `tesseract`. If the text in the picture looks l
 
 ### Blocklist and configuration
 
-The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region (for window captures, any visible window overlapping the captured rectangle counts, not only the focused one, and visible special-workspace windows count too; if Hyprland cannot say what is visible, nothing is captured), and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title. `omasnap` does not tell the plugin which area you picked, so a region capture is refused while any blocked window is visible on screen; with `slurp` only windows under the region count. Set `region_tool` to `auto` (default), `omasnap` or `slurp` in the settings file.
+The plugin refuses to capture a window whose class or title matches the blocklist, including when it is only partly under your region (for window captures, any visible window overlapping the captured rectangle counts, not only the focused one, and visible special-workspace windows count too; if Hyprland cannot say what is visible, or answers in a layout the plugin does not recognise, nothing is captured; both the Hyprland 0.56 and 0.57 layouts are read), and it refuses clipboard and notification captures while such a window has focus. Matching is a case-insensitive substring; a website is only recognised when its name is in the window title. `omasnap` does not tell the plugin which area you picked, so a region capture is refused while any blocked window is visible on screen; with `slurp` only windows under the region count. Set `region_tool` to `auto` (default), `omasnap` or `slurp` in the settings file.
 
 Settings live in `~/.config/snap-to-agent/config.json` (see [config.example.json](config.example.json)): `ocr`, `image` limits, per-mode default `questions`, and the `blocklist` lists. A missing or broken file means the defaults. The settings can also be changed in the panel.
 
@@ -132,7 +132,7 @@ Everything in `config.json` can be changed in the panel (the Settings tab, or `o
 
 ### Captures are deleted after a week
 
-A context file that holds a value you chose to send unmasked (`*-context-open.md`, only for prompts too large for a command line) is deleted after one hour, whatever the retention setting. Screenshots, other context files, `last.json` and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
+A context file that holds a value you chose to send unmasked (`*-context-open.md`, only for prompts too large for a command line) is deleted 10 minutes after the agent has started, and in any case 15 minutes after it was written (checked on every helper call), whatever the retention setting. Screenshots, other context files, `last.json` and history entries older than the retention period are removed whenever you capture or open the history. Only files this plugin created in `~/.cache/snap-to-agent/` are ever touched.
 
 ### Languages
 

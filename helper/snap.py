@@ -254,6 +254,11 @@ def cmd_send(args):
         report = launch.launch(plan, t["cwd"], dry_run="--dry-run" in args)
     except launch.LaunchError as e:
         return {"ok": False, "error": e.code, "message": e.message}
+    if not report["dry_run"] and r["file"]:
+        try:
+            history.remove_open_file_later(r["file"])  # a no-op unless it holds values sent unmasked
+        except OSError:
+            pass
     done = {"ok": True, "display": report["display"], "cwd": report["cwd"], "clipboard": report["clipboard"],
             "notified": report["notified"], "file": r["file"], "dry_run": report["dry_run"],
             "program": plan["agent"], "auto": plan["auto"]}
@@ -365,6 +370,10 @@ def main(argv):
             "history": cmd_history, "history-open": cmd_history_open, "history-delete": cmd_history_delete,
             "settings-get": cmd_settings_get, "settings-set": cmd_settings_set, "settings-reset": cmd_settings_reset,
             "cleanup": cmd_cleanup}
+    try:
+        history.sweep_open_files()  # an unmasked context file never outlives its limit waiting for a capture
+    except OSError:
+        pass
     if not argv or argv[0] not in cmds:
         out = {"ok": False, "error": "usage", "message": " | ".join(sorted(cmds))}
     else:
