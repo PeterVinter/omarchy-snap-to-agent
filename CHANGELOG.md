@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.5
+
+Listing and documentation only; the plugin's code and behavior are unchanged from 0.4.4.
+
+- **A new preview image.** `preview.png` is now a 1920x1080 poster with three real panels: the ready state in a dark theme, the masked secrets in a screenshot, and a light theme. They are the existing screenshots in `docs/screenshots/`, made with made-up data.
+- **README first screen.** The pitch line matches the manifest description ("Send a screenshot to your AI agent."), and the longer sentence follows under it. The image alt text describes the new poster.
+
 ## 0.4.4
 
 Two Low notes from the marketplace review of 0.4.3 (#15169).

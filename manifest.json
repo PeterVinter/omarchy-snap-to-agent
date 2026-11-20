@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.petervinter.snap-to-agent",
   "name": "Omarchy Snap to Agent",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "author": "Peter Vinter",
   "license": "MIT",
   "description": "Send a screenshot to your AI agent.",
