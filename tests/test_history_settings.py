@@ -81,14 +81,14 @@ class HistoryTests(unittest.TestCase):
         self.make()
         self.assertEqual(len(history.listing()), 1)
 
-    def test_unmasked_context_files_expire_after_an_hour_even_with_retention_off(self):
+    def test_unmasked_context_files_expire_quickly_even_with_retention_off(self):
         old = os.path.join(self.tmp.name, "a-context-open.md")
         fresh = os.path.join(self.tmp.name, "b-context-open.md")
         masked = os.path.join(self.tmp.name, "c-context.md")
         for p in (old, fresh, masked):
             with open(p, "w") as f:
                 f.write("x")
-        t = time.time() - 2 * 3600
+        t = time.time() - 2 * history.OPEN_TTL
         os.utime(old, (t, t))
         os.utime(masked, (t, t))
         self.assertEqual(history.cleanup(0), 1)

@@ -1,5 +1,9 @@
 # Roadmap
 
+## Next
+
+- Nothing planned. Candidates are under Later.
+
 ## Later
 
 - Tested image flags per agent, so images can go as images instead of a file path.

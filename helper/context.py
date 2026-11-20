@@ -28,22 +28,81 @@ def monitor_name(monitor_id, run=_runner.run):
     return ""
 
 
+class UnknownFormat(ValueError):
+    """The compositor's JSON is not in a layout this code knows, so visibility cannot be decided."""
+
+
+def _ws_key(ws):
+    """A comparable identity for a workspace object, or None if it is not in a known layout.
+
+    Hyprland 0.56 identifies a workspace by `id`. Hyprland 0.57 adds `address` (and only numbered
+    workspaces keep an `id`), so `address` is preferred when present."""
+    if not isinstance(ws, dict):
+        return None
+    address = ws.get("address")
+    if isinstance(address, str) and address:
+        return ("address", address)
+    wid = ws.get("id")
+    if isinstance(wid, int) and not isinstance(wid, bool):
+        return ("id", wid)
+    return None
+
+
+def _special_key(ws):
+    """The special workspace a monitor shows: its key, or None when none is showing.
+
+    Raises UnknownFormat when the field is not in a known layout, so callers stop instead of
+    treating "cannot tell" as "no special workspace"."""
+    if not isinstance(ws, dict):
+        raise UnknownFormat("specialWorkspace is missing")
+    if "address" in ws:  # 0.57: an empty address means none is showing
+        if not isinstance(ws["address"], str):
+            raise UnknownFormat("specialWorkspace.address")
+        return _ws_key(ws)
+    if "id" in ws:  # 0.56: id 0 means none is showing
+        wid = ws["id"]
+        if not isinstance(wid, int) or isinstance(wid, bool):
+            raise UnknownFormat("specialWorkspace.id")
+        return None if wid == 0 else ("id", wid)
+    raise UnknownFormat("specialWorkspace has neither address nor id")
+
+
 def _shown_workspaces(monitors):
-    """Workspace ids on screen: each monitor's active one plus a visible special workspace."""
+    """Workspace keys on screen: each monitor's active one plus a visible special workspace.
+
+    Raises UnknownFormat if any monitor is not in a known layout."""
+    if not isinstance(monitors, list):
+        raise UnknownFormat("monitors")
     shown = set()
     for m in monitors:
-        shown.add((m.get("activeWorkspace") or {}).get("id"))
-        special = (m.get("specialWorkspace") or {}).get("id")
-        if special:  # 0 or missing means no special workspace is showing
+        if not isinstance(m, dict):
+            raise UnknownFormat("monitor")
+        active = _ws_key(m.get("activeWorkspace"))
+        if active is None:
+            raise UnknownFormat("activeWorkspace")
+        shown.add(active)
+        special = _special_key(m.get("specialWorkspace"))
+        if special is not None:
             shown.add(special)
     return shown
+
+
+def _on_screen(client, shown):
+    """True if a mapped, unhidden client sits on a shown workspace. Raises UnknownFormat when a
+    window that would count has a workspace this code cannot read."""
+    if not client.get("mapped", True) or client.get("hidden", False):
+        return False
+    key = _ws_key(client.get("workspace"))
+    if key is None:
+        raise UnknownFormat("client workspace")
+    return key in shown
 
 
 def visible_windows(run=_runner.run):
     """Every window that is on screen right now, most recently focused first.
 
-    Returns None when the compositor could not be asked, so callers can stop instead of
-    treating "unknown" as "nothing there".
+    Returns None when the compositor could not be asked or answered in a layout this code does not
+    know (see _ws_key), so callers can stop instead of treating "unknown" as "nothing there".
     """
     ccode, cout, _ = run(["hyprctl", "clients", "-j"])
     mcode, mout, _ = run(["hyprctl", "monitors", "-j"])
@@ -52,12 +111,11 @@ def visible_windows(run=_runner.run):
     try:
         clients = json.loads(cout)
         shown = _shown_workspaces(json.loads(mout))
-    except (ValueError, TypeError, AttributeError):
+        if not isinstance(clients, list) or not all(isinstance(c, dict) for c in clients):
+            return None
+        out = [c for c in clients if _on_screen(c, shown)]
+    except (ValueError, TypeError, AttributeError):  # UnknownFormat is a ValueError
         return None
-    if not isinstance(clients, list):
-        return None
-    out = [c for c in clients if isinstance(c, dict) and c.get("mapped", True) and not c.get("hidden", False)
-           and (c.get("workspace") or {}).get("id") in shown]
     return sorted(out, key=lambda c: c.get("focusHistoryID", 99))
 
 
@@ -79,10 +137,12 @@ def window_at(x, y, run=_runner.run):
         try:
             cx, cy = c["at"]
             cw, ch = c["size"]
-            visible = c.get("mapped", True) and not c.get("hidden", False) and (c.get("workspace") or {}).get("id") in shown
+            visible = _on_screen(c, shown)
             if visible and cx <= x < cx + cw and cy <= y < cy + ch:
                 if best is None or c.get("focusHistoryID", 99) < best.get("focusHistoryID", 99):
                     best = c
+        except UnknownFormat:
+            return None
         except (KeyError, TypeError, ValueError):
             continue
     return best
